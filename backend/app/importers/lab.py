@@ -11,7 +11,7 @@ import unicodedata
 import zipfile
 import xml.etree.ElementTree as ET
 
-from app.calc.grade import normalize_grade, ect_norm
+from ..calc.grade import normalize_grade, ect_norm
 from .materials_1c import ImportFormatError, _column_index, _shared_strings, _to_float, _to_date, read_csv
 
 
