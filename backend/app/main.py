@@ -12,6 +12,7 @@ from .calc.full import full_calculation, prepare_order_item, validate_prepared_i
 from .calc.grade import load_grade_norms
 from .calc.machines import load_equipment_reference
 from .calc.optimizer import CandidateLayer, CompositionCandidate, Material
+from .compositions.router import router as compositions_router
 from .db import database_url, schema_status
 from .importers.lab import parse_lab_import
 from .importers.materials_1c import ImportFormatError, parse_material_import
@@ -25,6 +26,7 @@ STATIC = Path(__file__).parent / "static"
 DATA = Path(__file__).parent / "data"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 app.include_router(warehouse_router)
+app.include_router(compositions_router)
 
 
 class FefcoProfileRequest(BaseModel):
@@ -160,7 +162,7 @@ def modules():
             {"code": "materials", "name": "Сырьё и складской учёт", "status": "v0.9_foundation"},
             {"code": "inventory", "name": "Поступления и инвентаризация", "status": "api_foundation"},
             {"code": "writeoff", "name": "Отдельное подтверждение списания", "status": "api_foundation"},
-            {"code": "compositions", "name": "Композиции", "status": "next_v0.9_slice"},
+            {"code": "compositions", "name": "Версии композиций, BCT и стоимость/м²", "status": "api_foundation"},
             {"code": "lab", "name": "Импорт лаборатории", "status": "preview"},
             {"code": "corrugator", "name": "Оптимизатор раскроя + альтернативы", "status": "working"},
             {"code": "bct", "name": "Расчётный BCT McKee", "status": "working_estimate"},

@@ -9,7 +9,7 @@ from psycopg.rows import dict_row
 
 
 DATABASE_URL_ENV = "DATABASE_URL"
-REQUIRED_SCHEMA_VERSION = "0001_v0_9_foundation"
+REQUIRED_SCHEMA_VERSION = "0002_v0_9_compositions"
 
 
 class DatabaseNotConfigured(RuntimeError):
