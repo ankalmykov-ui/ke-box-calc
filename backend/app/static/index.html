@@ -1,23 +1,428 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>KE | BOX CALC v0.7.1</title><link rel="manifest" href="/manifest.webmanifest">
-<style>body{font-family:system-ui;margin:0;background:#f4f6f8;color:#182230}.top{background:#16324f;color:#fff;padding:16px 22px}.wrap{max-width:1100px;margin:auto;padding:18px}.card{background:#fff;border:1px solid #dce3eb;border-radius:14px;padding:16px;margin-bottom:14px}h2{margin:0 0 12px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}label{font-size:12px;color:#667085}input,select,button{width:100%;padding:10px;border-radius:8px;border:1px solid #ccd5df;box-sizing:border-box}button{background:#2359a8;color:#fff;font-weight:700;cursor:pointer;margin-top:8px}.secondary{background:#e9eef6;color:#24466f}.result{background:#f8fafc;border:1px solid #dce3eb;border-radius:10px;padding:12px;margin-top:10px}.item{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:8px;border-top:1px solid #e5e9ef;padding:8px 0}.muted{color:#667085;font-size:13px}.good{color:#16794b}.warn{color:#996000}.variant{padding:3px 0 3px 14px;font-size:13px}@media(max-width:760px){.grid,.item{grid-template-columns:1fr}}</style></head>
-<body><div class="top"><b>KE | BOX CALC</b> <span>v0.7.1</span><div style="font-size:12px;opacity:.75">конфигурация ООО "ПК Руспак"</div></div><main class="wrap">
-<section class="card"><h2>FEFCO 0201</h2><div class="grid"><div><label>Код</label><input id="code" value="BOX-001"></div><div><label>L, мм</label><input id="l" type="number" value="450"></div><div><label>B, мм</label><input id="b" type="number" value="326"></div><div><label>H, мм</label><input id="h" type="number" value="210"></div><div><label>Количество</label><input id="qty" type="number" value="1000"></div><div><label>Марка</label><input id="grade" value="T23"></div><div><label>Профиль</label><select id="profile"><option>B</option><option selected>C</option><option>E</option><option>BE</option><option>CE</option><option>BC</option></select></div><div><label>Цветов</label><input id="colors" type="number" value="1"></div></div><button onclick="addItem()">Добавить в заказ</button><button class="secondary" onclick="clearItems()">Очистить заказ и результат</button><div id="items" class="result muted">Пока нет изделий</div></section>
-<section class="card"><h2>Расчёт</h2><div class="grid"><div><label>Доступные рулоны, мм</label><input id="rolls" value="2150,2100,2050"></div><div><label>Рабочая ширина ГА, мм</label><input id="gaWidth" type="number" value="2100"></div><div><label>Макс. ручьёв</label><input id="streams" type="number" value="5"></div><div><label>Прочие потери, %</label><input id="waste" type="number" value="0"></div></div><button onclick="calculate()">Рассчитать заказ</button><div id="result" class="result muted">Результат ещё не рассчитан</div></section>
-<section class="card"><h2>Импорт сырья из 1С</h2><p class="muted">После проверки корректные строки можно сделать активными для текущего расчёта.</p><input id="onec" type="file" accept=".xlsx,.csv"><button onclick="preview1c()">Проверить файл 1С</button><button id="use1cBtn" class="secondary" onclick="use1c()" disabled>Использовать в расчёте</button><div id="onecResult" class="result muted">Файл не загружен</div></section>
-</main><script>
-const $=id=>document.getElementById(id);let order=[],lastResult=null,previewMaterials=[],sessionMaterials=[];
-async function api(url,opt){const r=await fetch(url,opt),d=await r.json();if(!r.ok)throw new Error(d.detail||'Ошибка');return d}
-function resetResult(){$('result').className='result muted';$('result').textContent='Результат ещё не рассчитан';lastResult=null}
-function addItem(){order.push({code:$('code').value||`ITEM-${order.length+1}`,product_type:'0201',length_mm:+$('l').value,width_mm:+$('b').value,height_mm:+$('h').value,quantity:+$('qty').value,required_board_grade:$('grade').value.toUpperCase(),profile:$('profile').value,colors:+$('colors').value,die_cut:false});resetResult();renderItems()}
-function removeItem(i){order.splice(i,1);resetResult();renderItems()}
-function renderItems(){$('items').innerHTML=order.length?order.map((x,i)=>`<div class="item"><b>${x.code}</b><span>${x.length_mm}×${x.width_mm}×${x.height_mm}</span><span>${x.quantity} шт</span><button onclick="removeItem(${i})">×</button></div>`).join(''):'Пока нет изделий'}
-function clearItems(){order=[];renderItems();resetResult()}
-function materialPayload(r){return {code_1c:r.code_1c,variant_1c:r.variant_1c||null,name:r.name,gsm:+r.gsm,price_rub_t:+r.price_rub_t,stock_kg:r.stock_kg==null?null:+r.stock_kg,procurement_status:r.procurement_status||'active',supplier:r.supplier||null}}
-function use1c(){sessionMaterials=previewMaterials.filter(r=>r.code_1c&&r.name&&+r.gsm>0&&+r.price_rub_t>0).map(materialPayload);$('onecResult').innerHTML=`<span class="good">Активно: <b>${sessionMaterials.length}</b> материалов 1С</span>`;resetResult()}
-function strengthHtml(items){return items.map(x=>{const s=x.strength;if(!s||s.bct_estimated_kn==null)return `<div>${x.code}: BCT — нет данных</div>`;return `<div><b>${x.code}</b>: BCT ≈ <b>${s.bct_estimated_kn} кН</b> (${s.bct_estimated_kgf} кгс)${s.warning?` <span class="warn">${s.warning}</span>`:''}</div>`}).join('')}
-function layoutHtml(x,i){const a=x.layout_alternatives||[];return `<div><b>Запуск ${i+1}</b>: рулон ${x.roll_width_mm} мм · обрезь ${x.edge_trim_pct}% · ${x.streams_total} руч.</div>`+(a.length?`<div class="muted">Варианты:</div>${a.map(v=>`<div class="variant">#${v.rank}${v.is_recommended?' ★':''}: ${v.roll_width_mm} мм · ${v.streams_total} руч. · отход ${v.total_waste_m2} м² · ${v.run_length_m} м</div>`).join('')}`:'')}
-async function calculate(){try{if(!order.length)throw new Error('Добавьте изделие');const payload={items:order,roll_widths_mm:$('rolls').value.split(',').map(Number).filter(Boolean),working_width_mm:+$('gaWidth').value,max_streams:+$('streams').value,other_waste_pct:+$('waste').value,materials:sessionMaterials,candidates:[]};const d=await api('/api/calc/full',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});lastResult=d;const launches=d.corrugator.flatMap(g=>g.launches);$('result').className='result';$('result').innerHTML=`<b>${d.items.length} поз. · ${d.cost.net_order_area_m2} м² · v${d.version}</b><div><b>BCT (McKee, расчётный)</b>${strengthHtml(d.items)}</div><div><b>Раскрой</b>${launches.map(layoutHtml).join('')}</div><div class="muted">Активных материалов 1С: ${sessionMaterials.length}</div>`}catch(e){$('result').className='result warn';$('result').textContent=e.message}}
-async function preview1c(){try{const f=$('onec').files[0];if(!f)throw new Error('Выберите файл');const fd=new FormData();fd.append('file',f);const d=await api('/api/import/1c/materials/preview',{method:'POST',body:fd});previewMaterials=d.rows||[];$('use1cBtn').disabled=!previewMaterials.length;$('onecResult').innerHTML=`Корректных строк: <b>${d.stats.rows_valid}</b>; замечаний: ${d.stats.issues}. Нажмите «Использовать в расчёте».`}catch(e){$('use1cBtn').disabled=true;$('onecResult').textContent=e.message}}
-if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
-</script></body></html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#14283d">
+  <title>KE | BOX CALC v0.8</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">KE</div>
+        <div>
+          <div class="brand-title">KE | BOX CALC <span class="version">v0.8</span></div>
+          <div class="brand-sub">конфигурация ООО "ПК Руспак"</div>
+        </div>
+      </div>
+      <div class="top-actions">
+        <div class="mode-switch" aria-label="Режим работы">
+          <button id="quickModeBtn" class="mode-btn active" type="button">Быстрый</button>
+          <button id="engineerModeBtn" class="mode-btn" type="button">Инженерный</button>
+        </div>
+        <span id="apiState" class="status-dot">API…</span>
+      </div>
+    </header>
+
+    <aside class="sidebar">
+      <nav>
+        <button class="nav-btn active" data-view="order"><span>01</span> Заказ</button>
+        <button class="nav-btn" data-view="result"><span>02</span> Результат</button>
+        <button class="nav-btn" data-view="data"><span>03</span> Данные</button>
+        <button class="nav-btn engineer-only" data-view="engineering"><span>04</span> Инженерный</button>
+        <button class="nav-btn" data-view="reports"><span>05</span> Отчёты</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div>ТЗ: v2.0 · 27.08.2026</div>
+        <div id="sessionHint">Сессия не сохранена</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section id="view-order" class="view active">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Текущий заказ</div>
+            <h1>Сформировать задание</h1>
+            <p>FEFCO 0201 и листовые заготовки. Несколько позиций рассчитываются совместно.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn ghost" type="button" onclick="clearOrder()">Очистить заказ</button>
+            <button class="btn primary" type="button" onclick="calculateOrder()">Рассчитать</button>
+          </div>
+        </div>
+
+        <div class="grid two">
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Добавить изделие</h2>
+                <p>В быстром режиме показаны только параметры заказа.</p>
+              </div>
+              <span class="pill">ручной ввод</span>
+            </div>
+
+            <div class="form-grid cols-3">
+              <label>Тип изделия
+                <select id="productType" onchange="syncProductType()">
+                  <option value="0201">FEFCO 0201</option>
+                  <option value="sheet">Листовая заготовка</option>
+                </select>
+              </label>
+              <label>Код позиции
+                <input id="itemCode" value="BOX-001" autocomplete="off">
+              </label>
+              <label>Количество, шт
+                <input id="quantity" type="number" min="1" value="1000">
+              </label>
+
+              <label>Клиент
+                <input id="client" placeholder="необязательно">
+              </label>
+              <label>Заказ / обозначение
+                <input id="orderRef" placeholder="необязательно">
+              </label>
+              <label>Срок исполнения
+                <input id="dueDate" type="date">
+              </label>
+            </div>
+
+            <div id="fefcoFields" class="form-grid cols-3 field-group">
+              <label>L, мм
+                <input id="lengthMm" type="number" min="1" value="450">
+              </label>
+              <label>B, мм
+                <input id="widthMm" type="number" min="1" value="326">
+              </label>
+              <label>H, мм
+                <input id="heightMm" type="number" min="1" value="210">
+              </label>
+            </div>
+
+            <div id="sheetFields" class="form-grid cols-2 field-group hidden">
+              <label>Длина заготовки, мм
+                <input id="blankLengthMm" type="number" min="1" value="1200">
+              </label>
+              <label>Ширина заготовки, мм
+                <input id="blankWidthMm" type="number" min="1" value="800">
+              </label>
+            </div>
+
+            <div class="form-grid cols-4">
+              <label>Марка
+                <select id="boardGrade"></select>
+              </label>
+              <label>Профиль
+                <select id="profile">
+                  <option>E</option><option>B</option><option selected>C</option>
+                  <option>BE</option><option>CE</option><option>BC</option>
+                </select>
+              </label>
+              <label>Цветов
+                <input id="colors" type="number" min="0" max="8" value="1">
+              </label>
+              <label class="check-label">
+                <span>Высечка</span>
+                <input id="dieCut" type="checkbox">
+              </label>
+            </div>
+
+            <details class="advanced engineer-only">
+              <summary>Геометрические поправки</summary>
+              <div class="form-grid cols-2">
+                <label>Клеевой стык J, мм
+                  <input id="jointMm" type="number" min="1" placeholder="по справочнику, 37 мм">
+                </label>
+                <label>Фактическая толщина d, мм
+                  <input id="caliperMm" type="number" min="0.1" step="0.01" placeholder="по профилю">
+                </label>
+              </div>
+            </details>
+
+            <div class="button-row">
+              <button class="btn primary" type="button" onclick="addItem()">Добавить изделие</button>
+              <button class="btn secondary" type="button" onclick="previewGeometry()">Проверить геометрию</button>
+            </div>
+            <div id="geometryPreview" class="inline-result muted">Геометрия будет рассчитана после проверки или общего расчёта.</div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Загрузка изделий</h2>
+                <p>XLSX/CSV: предпросмотр → проверка → применение.</p>
+              </div>
+              <a class="text-link" href="/api/reference/order-template">Скачать шаблон</a>
+            </div>
+            <input id="orderFile" class="file-input" type="file" accept=".xlsx,.csv">
+            <div class="button-row">
+              <button class="btn secondary" type="button" onclick="previewOrders()">Предпросмотр</button>
+              <button id="applyOrdersBtn" class="btn primary" type="button" onclick="applyOrders()" disabled>Добавить корректные</button>
+            </div>
+            <div id="orderImportState" class="inline-result muted">Файл не загружен.</div>
+
+            <div class="separator"></div>
+            <div class="form-grid cols-2">
+              <label>Горизонт групповой оптимизации
+                <select id="planningHorizon">
+                  <option value="1">1 день</option>
+                  <option value="2">2 дня</option>
+                  <option value="3">3 дня</option>
+                </select>
+              </label>
+              <label>Прочие технологические потери, %
+                <input id="otherWaste" type="number" min="0" max="99" step="0.1" value="0">
+              </label>
+            </div>
+          </article>
+        </div>
+
+        <article class="card order-card">
+          <div class="card-head">
+            <div>
+              <h2>Позиции заказа</h2>
+              <p id="orderSummary">Пока нет изделий.</p>
+            </div>
+            <span id="orderCount" class="counter">0</span>
+          </div>
+          <div id="orderTable" class="table-wrap empty-state">Добавьте первое изделие или загрузите файл.</div>
+        </article>
+      </section>
+
+      <section id="view-result" class="view">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Расчёт</div>
+            <h1>Рекомендуемое решение</h1>
+            <p>Результат ориентирован на решение: что изготовить, из чего, как раскроить и на какой машине.</p>
+          </div>
+          <div class="head-actions">
+            <button class="btn ghost" type="button" onclick="clearOrder()">Очистить заказ</button>
+            <button class="btn primary" type="button" onclick="calculateOrder()">Пересчитать</button>
+          </div>
+        </div>
+
+        <div class="grid four metric-grid">
+          <div class="metric"><span>Позиции</span><strong id="mItems">—</strong></div>
+          <div class="metric"><span>Площадь заказа</span><strong id="mArea">—</strong></div>
+          <div class="metric"><span>Сырьё</span><strong id="mMaterialCost">—</strong></div>
+          <div class="metric"><span>Известная стоимость</span><strong id="mTotalCost">—</strong></div>
+        </div>
+
+        <div id="resultEmpty" class="card empty-state big">
+          Расчёт ещё не выполнен. Сформируйте заказ и нажмите «Рассчитать».
+        </div>
+
+        <div id="resultBody" class="hidden">
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Позиции</h2>
+                <p>Геометрия, нормативный ECT и расчётный BCT.</p>
+              </div>
+            </div>
+            <div id="resultItems" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Раскрой на гофроагрегате</h2>
+                <p>Рекомендуемый запуск и до пяти альтернатив.</p>
+              </div>
+              <span id="rollSource" class="pill">ширины: вручную</span>
+            </div>
+            <div id="layoutResults" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Переработка</h2>
+                <p>Применимость P660 / 2Print / SRPACK и причины исключения.</p>
+              </div>
+            </div>
+            <div id="machineResults" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Себестоимость</h2>
+                <p>Сырьё и переработка считаются только там, где хватает подтверждённых исходных данных.</p>
+              </div>
+            </div>
+            <div id="costResults" class="cost-grid"></div>
+          </article>
+        </div>
+      </section>
+
+      <section id="view-data" class="view">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Оперативные данные</div>
+            <h1>1С и лаборатория</h1>
+            <p>Импорт всегда проходит через предпросмотр. Ошибочные данные не применяются молча.</p>
+          </div>
+        </div>
+
+        <div class="grid two">
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Сырьё из 1С</h2>
+                <p>Цена, остаток и ширина рулона участвуют в текущей сессии после применения.</p>
+              </div>
+              <span id="materialsCount" class="pill">0 активно</span>
+            </div>
+            <input id="onecFile" class="file-input" type="file" accept=".xlsx,.csv">
+            <div class="button-row">
+              <button class="btn secondary" type="button" onclick="preview1C()">Предпросмотр</button>
+              <button id="apply1cBtn" class="btn primary" type="button" onclick="apply1C()" disabled>Использовать в расчёте</button>
+            </div>
+            <div id="onecState" class="inline-result muted">Файл не загружен.</div>
+            <div id="materialsTable" class="mini-table"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div>
+                <h2>Лаборатория</h2>
+                <p>Фактический ECT хранится отдельно от нормативов.</p>
+              </div>
+              <span id="labCount" class="pill">0 записей</span>
+            </div>
+            <input id="labFile" class="file-input" type="file" accept=".xlsx,.csv">
+            <div class="button-row">
+              <button class="btn secondary" type="button" onclick="previewLab()">Предпросмотр</button>
+              <button class="btn disabled" type="button" disabled>Применить в историю</button>
+            </div>
+            <div id="labState" class="inline-result muted">Файл не загружен. Применение в PostgreSQL будет подключено отдельным модулем.</div>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>Доступные ширины рулонов</h2>
+              <p>Если поле пустое, v0.8 берёт уникальные доступные ширины из активного импорта 1С.</p>
+            </div>
+          </div>
+          <div class="form-grid cols-3">
+            <label>Ширины рулонов, мм
+              <input id="rollWidths" value="2150,2100,2050" placeholder="например: 2150,2100,2050">
+            </label>
+            <label>Рабочая ширина ГА, мм
+              <input id="gaWidth" type="number" value="2100">
+            </label>
+            <label>Максимум ручьёв
+              <input id="maxStreams" type="number" min="1" value="5">
+            </label>
+          </div>
+        </article>
+      </section>
+
+      <section id="view-engineering" class="view">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Инженерный режим</div>
+            <h1>Справочники и модель</h1>
+            <p>Рабочие параметры отделены от пользовательского ввода заказа.</p>
+          </div>
+        </div>
+
+        <div class="grid two">
+          <article class="card">
+            <div class="card-head">
+              <div><h2>Утверждённые композиции</h2><p>Сессионный редактор v0.8 уже передаёт композиции в расчёт.</p></div>
+              <span id="candidateCount" class="pill">0</span>
+            </div>
+            <div class="form-grid cols-3">
+              <label>Код композиции<input id="compCode" placeholder="например T23-C-01"></label>
+              <label>Марка<select id="compGrade"></select></label>
+              <label>Профиль<select id="compProfile"><option>E</option><option>B</option><option selected>C</option><option>BE</option><option>CE</option><option>BC</option></select></label>
+            </div>
+            <div class="form-grid cols-3">
+              <label>Число слоёв
+                <select id="layerCount" onchange="renderCompositionLayers()">
+                  <option value="3">3 слоя</option>
+                  <option value="5">5 слоёв</option>
+                </select>
+              </label>
+              <label>Запас прочности, %<input id="strengthReserve" type="number" step="0.1" value="0"></label>
+              <label>Успешных испытаний<input id="labPassCount" type="number" min="0" value="0"></label>
+            </div>
+            <div id="compositionLayers" class="layer-editor"></div>
+            <div class="button-row">
+              <button class="btn primary" type="button" onclick="addComposition()">Добавить композицию</button>
+              <button class="btn ghost" type="button" onclick="clearCompositions()">Очистить сессионные</button>
+            </div>
+            <div id="compositionList" class="stack compact"></div>
+          </article>
+
+          <article class="card">
+            <div class="card-head">
+              <div><h2>Нормативы марок</h2><p>Версионируемый справочник требований. Фактическая лаборатория его не переписывает.</p></div>
+            </div>
+            <div id="gradeNorms" class="mini-table"></div>
+          </article>
+        </div>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
+              <h2>Перерабатывающие машины</h2>
+              <p>Справочник v0.8. Параметры показываются вместе со статусом источника.</p>
+            </div>
+            <span class="pill warning">редактор БД — следующий этап</span>
+          </div>
+          <div id="equipmentCards" class="grid three"></div>
+          <div class="separator"></div>
+          <h3>Часовая стоимость переработки</h3>
+          <p class="muted">Эти значения уже участвуют в текущем расчёте. Полное редактирование геометрических параметров будет сохраняться в PostgreSQL с историей изменений.</p>
+          <div id="machineRates" class="form-grid cols-3"></div>
+        </article>
+      </section>
+
+      <section id="view-reports" class="view">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow">Отчётность</div>
+            <h1>Экспорт результата</h1>
+            <p>Отчётный модуль отделён от расчётного ядра. Цель — отдельная печатная вёрстка A4.</p>
+          </div>
+        </div>
+
+        <div class="grid two">
+          <article class="card report-card">
+            <span class="report-tag">A4 · кратко</span>
+            <h2>Экспресс</h2>
+            <p>Для продаж, руководителя и быстрого согласования: изделие, заготовка, марка, композиция, раскрой, машина и ориентировочная себестоимость.</p>
+            <button class="btn disabled" disabled>Сформировать PDF</button>
+            <small>Каркас интерфейса готов; PDF-движок ещё не подключён.</small>
+          </article>
+          <article class="card report-card">
+            <span class="report-tag">A4 · технологический</span>
+            <h2>Технологу</h2>
+            <p>Подробная геометрия, слои сырья, альтернативы, ручьи, уровни поперечной резки, машины и технологическая схема раскроя.</p>
+            <button class="btn disabled" disabled>Сформировать PDF</button>
+            <small>В следующем модуле добавляется отдельная печатная вёрстка и схема раскроя.</small>
+          </article>
+        </div>
+
+        <article class="card">
+          <h2>Snapshot расчёта</h2>
+          <p>ТЗ 2.0 требует, чтобы старый расчёт не менялся после обновления справочников. PostgreSQL/snapshot уже заложены архитектурно, но ещё не подключены к текущей веб-сессии.</p>
+          <div id="snapshotPreview" class="code-box">Сначала выполните расчёт.</div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
