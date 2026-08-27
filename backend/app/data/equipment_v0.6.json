@@ -1,0 +1,35 @@
+{
+  "version": "0.6",
+  "machines": [
+    {
+      "code": "M001", "name": "P660", "model": "P660 660×1800", "status": "passport_confirmed",
+      "profiles": ["E","B","C","BE","CE","BC"], "colors": 2,
+      "sheet": {"min_a_mm": 350, "min_b_mm": 220, "max_a_mm": 1800, "max_b_mm": 633, "skip_max_a_mm": 1800, "skip_max_b_mm": 840},
+      "board_thickness_mm": {"min": 1.8, "max": 8.0},
+      "flaps_mm": {"small_min": 60, "small_max": 750, "large_min": 110, "large_max": 780},
+      "speed": {"cruise_per_hour": 15000, "mechanical_max_per_hour": 18000, "status": "passport"},
+      "setup_minutes": 25,
+      "source": "Паспорт LMC P660"
+    },
+    {
+      "code": "M002", "name": "2Print", "model": "TP-CR-0924", "status": "requires_passport_verification",
+      "profiles": ["B","C","BC"], "colors": 3,
+      "sheet": {"min_a_mm": 250, "min_b_mm": 200, "max_a_mm": 2200, "max_b_mm": 3200},
+      "board_thickness_mm": {"min": null, "max": null},
+      "flaps_mm": null,
+      "speed": {"cruise_per_hour": null, "mechanical_max_per_hour": null, "status": "not_calibrated"},
+      "setup_minutes": 30,
+      "source": "Старый рабочий справочник; паспорт требуется"
+    },
+    {
+      "code": "M003", "name": "SRPACK", "model": "FFG-1226", "status": "passport_confirmed",
+      "profiles": ["E","B","C","BE","CE","BC"], "colors": 3,
+      "sheet": {"min_a_mm": 690, "min_b_mm": 300, "max_a_mm": 2600, "max_b_mm": 1170, "skip_max_a_mm": 2600, "skip_max_b_mm": 1500},
+      "board_thickness_mm": {"min": 2.0, "max": 10.0},
+      "flaps_mm": {"small_min": 160, "small_max": 1017.05, "large_min": 160, "large_max": 1217.05, "glue_flap_max_height": 100, "glue_flap_max_width": 45},
+      "speed": {"cruise_per_hour": 7200, "mechanical_max_per_hour": 9000, "status": "passport_max_plus_working_cruise"},
+      "setup_minutes": 30,
+      "source": "Паспорт SR PACK FFG-1226"
+    }
+  ]
+}

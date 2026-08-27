@@ -1,0 +1,18 @@
+{
+  "status": "example_only",
+  "production_use": false,
+  "note": "Пример структуры. В production-каталог попадают только утвержденные технологом композиции с кодами 1С.",
+  "candidates": [
+    {
+      "code": "EX-C-100-100-100",
+      "board_grade": "T21",
+      "profile": "C",
+      "status": "example_only",
+      "layers": [
+        {"role": "outer", "material_key": "EX-OUTER", "corrugation_coefficient": 1.0},
+        {"role": "medium", "material_key": "EX-MEDIUM", "corrugation_coefficient": 1.47},
+        {"role": "inner", "material_key": "EX-INNER", "corrugation_coefficient": 1.0}
+      ]
+    }
+  ]
+}

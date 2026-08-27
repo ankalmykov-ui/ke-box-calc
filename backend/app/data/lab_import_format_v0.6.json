@@ -1,0 +1,7 @@
+{
+  "format": "KE_BOX_CALC_LAB_v1",
+  "accepted_files": ["xlsx", "csv"],
+  "supported_sheet_roles": ["испытания", "нормы"],
+  "fields": ["date","tech_card","protocol","client","product","size","declared_grade","actual_grade","profile","layer1","layer2","layer3","layer4","layer5","ect_norm","ect_actual","bct_actual","moisture","line","customer_requirement"],
+  "principle": "Исходный текст сохраняется, нормализованные марки/линии/слои хранятся рядом. Нераспознанное не угадывается."
+}

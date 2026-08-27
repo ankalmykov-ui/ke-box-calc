@@ -1,0 +1,15 @@
+{
+  "source_file": "заказ сырья  2026.xlsm",
+  "source_sheet": "План июль-сентябрь 2024",
+  "candidate_rows": 181,
+  "glue_flap_reference_mm": 40,
+  "profiles": {
+    "B": {"sample_n": 72,"perimeter_extra_mm": 4,"longitudinal_total_delta_mode_mm": 44,"longitudinal_mode_share": 0.875,"width_delta_even_b_mm": 3,"width_delta_even_b_share": 0.94,"width_delta_odd_b_mm": 4,"width_delta_odd_b_share": 0.95},
+    "C": {"sample_n": 100,"perimeter_extra_mm": 7,"longitudinal_total_delta_mode_mm": 47,"longitudinal_mode_share": 0.81,"width_delta_even_b_mm": 6,"width_delta_even_b_share": 0.5965,"width_delta_odd_b_mm": 5,"width_delta_odd_b_share": 0.8611},
+    "BC": {"sample_n": 9,"perimeter_extra_mm": 16,"longitudinal_total_delta_mode_mm": 56,"longitudinal_mode_share": 0.7778,"width_delta_even_b_mm": 11,"width_delta_even_b_share": 0.75,"width_delta_odd_b_mm": 12,"width_delta_odd_b_share": 0.6}
+  },
+  "control_points": [
+    {"source": "Техкарта №990 26.08.2026","profile": "C","L": 450,"B": 326,"H": 210,"actual_blank_length_mm": 1599,"actual_blank_width_mm": 540,"actual_longitudinal_total_delta_mm": 47,"actual_width_delta_mm": 4,"rill_distances_mm": [163,214,163]},
+    {"source": "Техкарта №990 26.08.2026","profile": "C","L": 450,"B": 326,"H": 160,"actual_blank_length_mm": 1599,"actual_blank_width_mm": 490,"actual_longitudinal_total_delta_mm": 47,"actual_width_delta_mm": 4,"rill_distances_mm": [163,164,163]}
+  ]
+}
