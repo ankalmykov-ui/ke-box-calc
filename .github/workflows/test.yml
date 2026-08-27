@@ -19,4 +19,22 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
-      - run: PYTHONPATH=. pytest -q
+      - name: Run tests
+        shell: bash
+        run: |
+          set +e
+          PYTHONPATH=. pytest -q 2>&1 | tee pytest-output.txt
+          code=${PIPESTATUS[0]}
+          echo "$code" > pytest-exit-code.txt
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output
+          path: |
+            backend/pytest-output.txt
+            backend/pytest-exit-code.txt
+      - name: Fail if tests failed
+        shell: bash
+        run: |
+          code=$(cat pytest-exit-code.txt)
+          test "$code" -eq 0
