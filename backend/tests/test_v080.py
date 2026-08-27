@@ -145,7 +145,7 @@ def test_toprint_reference_is_version_08_family_data():
     assert top["status"] == "catalog_family_unverified"
 
 
-def test_roll_widths_can_be_derived_from_active_1c_materials():
+def test_roll_widths_can_be_derived_from_request_materials():
     req = FullCalculationRequest(
         items=[OrderItemRequest(
             code="A",
@@ -168,7 +168,7 @@ def test_roll_widths_can_be_derived_from_active_1c_materials():
         )],
     )
     result = calc_full(req)
-    assert result["roll_width_source"] == "1c_materials"
+    assert result["roll_width_source"] == "request_materials"
     launches = [launch for group in result["corrugator"] for launch in group["launches"]]
     assert launches
     assert all(launch["roll_width_mm"] == 2150 for launch in launches)

@@ -7,12 +7,20 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - boxcalc_pgdata:/var/lib/postgresql/data
-      - ./backend/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  migrate:
+    build: ./backend
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    command: ["python", "-m", "app.db_migrations"]
+    depends_on:
+      db:
+        condition: service_healthy
 
   app:
     build: ./backend
@@ -21,8 +29,8 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   boxcalc_pgdata:

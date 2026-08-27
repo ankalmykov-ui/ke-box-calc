@@ -2,11 +2,11 @@ name: tests
 
 on:
   push:
-    branches: [main, v0.8-dev]
+    branches: [main, v0.8-dev, v0.9-dev]
   pull_request:
-    branches: [main]
+    branches: [main, v0.8-dev, v0.9-dev]
 
-# v0.8 development gate: main stays on the last accepted release until this passes.
+# Development gate: main stays on the last accepted release until this passes.
 jobs:
   pytest:
     runs-on: ubuntu-latest

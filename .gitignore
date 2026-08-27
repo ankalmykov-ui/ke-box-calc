@@ -1,0 +1,9 @@
+.env
+.env.local
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.vercel/
+pytest-output.txt
+pytest-exit-code.txt

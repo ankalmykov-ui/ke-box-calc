@@ -12,15 +12,19 @@ from .calc.full import full_calculation, prepare_order_item, validate_prepared_i
 from .calc.grade import load_grade_norms
 from .calc.machines import load_equipment_reference
 from .calc.optimizer import CandidateLayer, CompositionCandidate, Material
+from .db import database_url, schema_status
 from .importers.lab import parse_lab_import
 from .importers.materials_1c import ImportFormatError, parse_material_import
 from .importers.orders import parse_order_import, validate_order_rows
+from .warehouse.router import router as warehouse_router
 
-APP_VERSION = "0.8.0-dev"
+APP_VERSION = "0.9.0-dev"
+API_VERSION = "v1"
 app = FastAPI(title="KE | BOX CALC", version=APP_VERSION)
 STATIC = Path(__file__).parent / "static"
 DATA = Path(__file__).parent / "data"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+app.include_router(warehouse_router)
 
 
 class FefcoProfileRequest(BaseModel):
@@ -125,26 +129,44 @@ def sw():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "app": "KE | BOX CALC", "version": APP_VERSION}
+    return {
+        "status": "ok",
+        "app": "KE | BOX CALC",
+        "version": APP_VERSION,
+        "database": "configured" if database_url() else "not_configured",
+    }
+
+
+@app.get("/api/v1/meta")
+def api_meta():
+    return {
+        "app": "KE | BOX CALC",
+        "app_version": APP_VERSION,
+        "api_version": API_VERSION,
+        "spec": "KE | BOX CALC — техническое задание v2.2",
+        "schema": schema_status(),
+    }
 
 
 @app.get("/api/modules")
 def modules():
     return {
         "version": APP_VERSION,
-        "spec": "KE | BOX CALC — техническое задание v2.0",
+        "spec": "KE | BOX CALC — техническое задание v2.2",
         "scope_v1": ["SHEET", "FEFCO 0201"],
         "modules": [
             {"code": "geometry", "name": "Геометрия FEFCO 0201", "status": "working"},
             {"code": "orders", "name": "Ручной ввод + импорт изделий", "status": "working"},
-            {"code": "materials", "name": "Импорт сырья 1С", "status": "working_session"},
-            {"code": "compositions", "name": "Композиции", "status": "working_session_catalog"},
+            {"code": "materials", "name": "Сырьё и складской учёт", "status": "v0.9_foundation"},
+            {"code": "inventory", "name": "Поступления и инвентаризация", "status": "api_foundation"},
+            {"code": "writeoff", "name": "Отдельное подтверждение списания", "status": "api_foundation"},
+            {"code": "compositions", "name": "Композиции", "status": "next_v0.9_slice"},
             {"code": "lab", "name": "Импорт лаборатории", "status": "preview"},
             {"code": "corrugator", "name": "Оптимизатор раскроя + альтернативы", "status": "working"},
             {"code": "bct", "name": "Расчётный BCT McKee", "status": "working_estimate"},
             {"code": "machines", "name": "P660 / 2Print / SRPACK", "status": "working_reference"},
             {"code": "reports", "name": "PDF-отчёты", "status": "ui_scaffold"},
-            {"code": "snapshots", "name": "Snapshots/PostgreSQL", "status": "architecture_ready"},
+            {"code": "snapshots", "name": "Snapshots/PostgreSQL", "status": "migration_foundation"},
             {"code": "full", "name": "Сквозной расчёт заказа", "status": "working_partial_cost"},
         ],
     }
@@ -224,7 +246,8 @@ def validate_orders(req: ValidateRowsRequest):
     return validate_order_rows(req.rows)
 
 
-@app.post("/api/import/1c/materials/preview")
+@app.post("/api/import/1c/materials/preview", deprecated=True)
+@app.post("/api/v1/inventory/imports/1c/preview")
 async def preview_1c(file: UploadFile = File(...)):
     try:
         return parse_material_import(await file.read(), file.filename or "materials.xlsx")
@@ -264,9 +287,11 @@ def calc_full(req: FullCalculationRequest):
                 {float(m.roll_width_mm) for m in materials if m.roll_width_mm and m.procurement_status != "unavailable"},
                 reverse=True,
             )
-            roll_width_source = "1c_materials"
+            roll_width_source = "request_materials"
         if not roll_widths:
-            raise ValueError("Не заданы доступные ширины рулонов: введите их вручную или загрузите сырьё из 1С.")
+            raise ValueError(
+                "Не заданы доступные ширины рулонов: введите их вручную или выберите сырьё из склада."
+            )
 
         result = full_calculation(
             [x.model_dump() for x in req.items],
