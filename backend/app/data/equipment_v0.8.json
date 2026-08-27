@@ -1,0 +1,53 @@
+{
+  "version": "0.8",
+  "note": "Параметры справочника являются редактируемыми. Приоритет: фактически проверенное → паспорт → опубликованный каталог семейства → исторический рабочий справочник.",
+  "machines": [
+    {
+      "code": "M001",
+      "name": "P660",
+      "model": "P660 660×1800",
+      "manufacturer": "LMC",
+      "status": "passport_confirmed",
+      "profiles": ["E", "B", "C", "BE", "CE", "BC"],
+      "colors": 2,
+      "sheet": {"min_a_mm": 350, "min_b_mm": 220, "max_a_mm": 1800, "max_b_mm": 633, "skip_max_a_mm": 1800, "skip_max_b_mm": 840},
+      "board_thickness_mm": {"min": 1.8, "max": 8.0},
+      "flaps_mm": {"small_min": 60, "small_max": 750, "large_min": 110, "large_max": 780},
+      "speed": {"cruise_per_hour": 15000, "mechanical_max_per_hour": 18000, "status": "passport_plus_working_reference"},
+      "setup_minutes": 25,
+      "source": "Паспорт LMC P660; параметры остаются уточняемыми по факту"
+    },
+    {
+      "code": "M002",
+      "name": "2Print",
+      "model": "TP-CR-0924",
+      "manufacturer": "TOPRINT / семейство TP-CR",
+      "status": "catalog_family_unverified",
+      "profiles": ["B", "C", "BC"],
+      "colors": 3,
+      "sheet": {"min_a_mm": 280, "min_b_mm": 700, "max_a_mm": 900, "max_b_mm": 2400, "skip_max_a_mm": 1200, "skip_max_b_mm": 2400},
+      "printing_area_mm": {"max_a_mm": 850, "max_b_mm": 2350},
+      "die_cut_area_mm": {"max_a_mm": 850, "max_b_mm": 2350},
+      "board_thickness_mm": {"min": 1.5, "max": 11.0},
+      "slotter": {"normal_min_mm": [150, 150, 150, 150], "reverse_min_mm": [260, 50, 260, 50], "max_depth_mm": 250, "min_box_height_mm": 110},
+      "speed": {"cruise_per_hour": null, "economic_min_per_hour": 7200, "economic_max_per_hour": 15000, "mechanical_max_per_hour": 18000, "status": "published_family_data_requires_machine_calibration"},
+      "setup_minutes": 30,
+      "source": "Открытые технические материалы по TP-CR-0924: 900×2400; skip 1200×2400; min 280×700; 1.5–11 мм; max 300 лист/мин. Точное исполнение установленной машины подтвердить по шильдику/паспорту."
+    },
+    {
+      "code": "M003",
+      "name": "SRPACK",
+      "model": "FFG-1226",
+      "manufacturer": "SR PACK",
+      "status": "passport_confirmed",
+      "profiles": ["E", "B", "C", "BE", "CE", "BC"],
+      "colors": 3,
+      "sheet": {"min_a_mm": 690, "min_b_mm": 300, "max_a_mm": 2600, "max_b_mm": 1170, "skip_max_a_mm": 2600, "skip_max_b_mm": 1500},
+      "board_thickness_mm": {"min": 2.0, "max": 10.0},
+      "flaps_mm": {"small_min": 160, "small_max": 1017.05, "large_min": 160, "large_max": 1217.05, "glue_flap_max_height": 100, "glue_flap_max_width": 45},
+      "speed": {"cruise_per_hour": 7200, "mechanical_max_per_hour": 9000, "status": "passport_max_plus_working_cruise"},
+      "setup_minutes": 30,
+      "source": "Паспорт SR PACK FFG-1226"
+    }
+  ]
+}
