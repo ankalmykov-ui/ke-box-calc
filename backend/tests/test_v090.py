@@ -10,7 +10,7 @@ from app.compositions.models import (
     CompositionLayerInput,
 )
 from app.db import REQUIRED_SCHEMA_VERSION, schema_status
-from app.db_migrations import migration_files
+from app.db_migrations import migration_files, should_apply_migrations_on_startup
 from app.main import APP_VERSION, app, health
 from app.warehouse.models import ReceiptLineInput, StockQuantityInput
 
@@ -30,6 +30,18 @@ def test_v09_version_and_database_are_lazy(monkeypatch):
         "required_version": REQUIRED_SCHEMA_VERSION,
         "applied_versions": [],
     }
+
+
+def test_preview_auto_migrations_are_explicitly_gated(monkeypatch):
+    monkeypatch.delenv("AUTO_APPLY_MIGRATIONS", raising=False)
+    assert should_apply_migrations_on_startup() is False
+
+    monkeypatch.setenv("AUTO_APPLY_MIGRATIONS", "true")
+    assert should_apply_migrations_on_startup() is True
+
+    source = (BACKEND / "app" / "db_migrations.py").read_text(encoding="utf-8")
+    assert "pg_advisory_xact_lock" in source
+    assert "MIGRATION_LOCK_KEY" in source
 
 
 def test_first_migration_is_discoverable_and_canonical():

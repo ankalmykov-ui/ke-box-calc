@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from pathlib import Path
 import json
 
@@ -14,6 +15,7 @@ from .calc.machines import load_equipment_reference
 from .calc.optimizer import CandidateLayer, CompositionCandidate, Material
 from .compositions.router import router as compositions_router
 from .db import database_url, schema_status
+from .db_migrations import apply_migrations, should_apply_migrations_on_startup
 from .importers.lab import parse_lab_import
 from .importers.materials_1c import ImportFormatError, parse_material_import
 from .importers.orders import parse_order_import, validate_order_rows
@@ -21,7 +23,16 @@ from .warehouse.router import router as warehouse_router
 
 APP_VERSION = "0.9.0-dev"
 API_VERSION = "v1"
-app = FastAPI(title="KE | BOX CALC", version=APP_VERSION)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if should_apply_migrations_on_startup():
+        apply_migrations()
+    yield
+
+
+app = FastAPI(title="KE | BOX CALC", version=APP_VERSION, lifespan=lifespan)
 STATIC = Path(__file__).parent / "static"
 DATA = Path(__file__).parent / "data"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
