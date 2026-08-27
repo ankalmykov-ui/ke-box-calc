@@ -172,7 +172,9 @@ def optimize_corrugator_group(items: list[CorrugatorItem], roll_widths_mm: list[
             run = alternatives[0]
         run["profile"] = selected[0].profile
         run["required_board_grades"] = sorted({x.required_board_grade for x in selected})
-        run["layout_alternatives"] = alternatives
+        # `run` is `alternatives[0]`, so including the full list here would make
+        # the response contain a self-reference that FastAPI cannot serialize.
+        run["layout_alternatives"] = alternatives[1:]
         launches.append(run)
         selected_set = set(subset_idx)
         remaining = [x for i, x in enumerate(remaining) if i not in selected_set]

@@ -1,3 +1,5 @@
+import json
+
 from app.calc.full import prepare_order_item, estimate_bct_mckee
 from app.calc.machines import evaluate_machine, load_equipment_reference
 from app.calc.optimizer import Material
@@ -114,3 +116,26 @@ def test_roll_widths_can_be_derived_from_active_1c_materials():
     launches = [launch for group in result["corrugator"] for launch in group["launches"]]
     assert launches
     assert all(launch["roll_width_mm"] == 2150 for launch in launches)
+
+
+def test_full_calculation_result_is_json_serializable():
+    req = FullCalculationRequest(
+        items=[OrderItemRequest(
+            code="BOX-001",
+            product_type="0201",
+            length_mm=450,
+            width_mm=326,
+            height_mm=210,
+            quantity=1000,
+            required_board_grade="T23.1",
+            profile="B",
+        )],
+        roll_widths_mm=[2150, 2100, 2050],
+    )
+
+    result = calc_full(req)
+    json.dumps(result, ensure_ascii=False)
+
+    launches = [launch for group in result["corrugator"] for launch in group["launches"]]
+    assert launches
+    assert all(launch not in launch["layout_alternatives"] for launch in launches)
