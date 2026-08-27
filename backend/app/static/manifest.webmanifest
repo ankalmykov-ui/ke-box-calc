@@ -1,1 +1,9 @@
-{"name":"KE | BOX CALC","short_name":"BOX CALC","start_url":"/","display":"standalone","background_color":"#f5f7fa","theme_color":"#14233a","description":"Расчёт и оптимизация гофротары"}
+{
+  "name": "KE | BOX CALC",
+  "short_name": "BOX CALC",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eef2f5",
+  "theme_color": "#14283d",
+  "lang": "ru"
+}
