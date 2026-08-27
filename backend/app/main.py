@@ -16,11 +16,12 @@ from .importers.lab import parse_lab_import
 from .importers.materials_1c import ImportFormatError, parse_material_import
 from .importers.orders import parse_order_import, validate_order_rows
 
-APP_VERSION = "0.7.1"
+APP_VERSION = "0.8.0-dev"
 app = FastAPI(title="KE | BOX CALC", version=APP_VERSION)
 STATIC = Path(__file__).parent / "static"
 DATA = Path(__file__).parent / "data"
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
+
 
 class FefcoProfileRequest(BaseModel):
     length_mm: float = Field(gt=0)
@@ -29,6 +30,7 @@ class FefcoProfileRequest(BaseModel):
     profile: str
     manufacturer_joint_override_mm: float | None = Field(default=None, gt=0)
     caliper_override_mm: float | None = Field(default=None, gt=0)
+
 
 class MaterialRequest(BaseModel):
     code_1c: str
@@ -39,11 +41,20 @@ class MaterialRequest(BaseModel):
     stock_kg: float | None = Field(default=None, ge=0)
     procurement_status: str = "active"
     supplier: str | None = None
+    manufacturer: str | None = None
+    material_type: str | None = None
+    roll_width_mm: float | None = Field(default=None, gt=0)
+    price_date: str | None = None
+    stock_date: str | None = None
+    technological_code: str | None = None
+    color: str | None = None
+
 
 class CandidateLayerRequest(BaseModel):
     role: str
     material_key: str
     corrugation_coefficient: float = Field(default=1.0, gt=0)
+
 
 class CandidateRequest(BaseModel):
     code: str
@@ -54,6 +65,7 @@ class CandidateRequest(BaseModel):
     evidence: str = "technologist_approved"
     strength_reserve_pct: float | None = None
     lab_pass_count: int = 0
+
 
 class OrderItemRequest(BaseModel):
     code: str
@@ -66,7 +78,7 @@ class OrderItemRequest(BaseModel):
     quantity: int = Field(gt=0)
     required_board_grade: str
     profile: str
-    colors: int = 1
+    colors: int = Field(default=1, ge=0)
     die_cut: bool = False
     manufacturer_joint_mm: float | None = None
     caliper_mm: float | None = None
@@ -74,89 +86,185 @@ class OrderItemRequest(BaseModel):
     order_ref: str | None = None
     due_date: str | None = None
 
+
 class FullCalculationRequest(BaseModel):
     items: list[OrderItemRequest]
-    roll_widths_mm: list[float]
-    materials: list[MaterialRequest] = []
-    candidates: list[CandidateRequest] = []
-    machine_hourly_costs: dict[str, float] = {}
+    roll_widths_mm: list[float] = Field(default_factory=list)
+    materials: list[MaterialRequest] = Field(default_factory=list)
+    candidates: list[CandidateRequest] = Field(default_factory=list)
+    machine_hourly_costs: dict[str, float] = Field(default_factory=dict)
     other_waste_pct: float = Field(default=0, ge=0, lt=100)
     working_width_mm: float = 2100
     max_streams: int = 5
+    planning_horizon_days: int = Field(default=1, ge=1, le=3)
+
 
 class ValidateRowsRequest(BaseModel):
     rows: list[dict]
 
+
 @app.get("/")
-def root(): return FileResponse(STATIC / "index.html")
+def root():
+    return FileResponse(STATIC / "index.html")
+
 
 @app.get("/manifest.webmanifest")
-def manifest(): return FileResponse(STATIC / "manifest.webmanifest", media_type="application/manifest+json")
+def manifest():
+    return FileResponse(STATIC / "manifest.webmanifest", media_type="application/manifest+json")
+
 
 @app.get("/sw.js")
-def sw(): return FileResponse(STATIC / "sw.js", media_type="application/javascript")
+def sw():
+    return FileResponse(STATIC / "sw.js", media_type="application/javascript")
+
 
 @app.get("/health")
-def health(): return {"status": "ok", "app": "KE | BOX CALC", "version": APP_VERSION}
+def health():
+    return {"status": "ok", "app": "KE | BOX CALC", "version": APP_VERSION}
+
 
 @app.get("/api/modules")
 def modules():
-    return {"version": APP_VERSION, "scope_v1": ["SHEET", "FEFCO 0201"], "modules": [
-        {"code": "geometry", "name": "Геометрия FEFCO 0201", "status": "working"},
-        {"code": "orders", "name": "Ручной ввод + загрузка изделий", "status": "working"},
-        {"code": "materials", "name": "Импорт сырья 1С", "status": "working_active_session"},
-        {"code": "lab", "name": "Импорт лаборатории", "status": "working"},
-        {"code": "corrugator", "name": "Оптимизатор раскроя + варианты", "status": "working"},
-        {"code": "bct", "name": "Расчётный BCT McKee", "status": "working_estimate"},
-        {"code": "machines", "name": "P660 / 2Print / SRPACK", "status": "working_with_calibration_flags"},
-        {"code": "full", "name": "Сквозной расчёт заказа", "status": "working"},
-    ]}
+    return {
+        "version": APP_VERSION,
+        "spec": "KE | BOX CALC — техническое задание v2.0",
+        "scope_v1": ["SHEET", "FEFCO 0201"],
+        "modules": [
+            {"code": "geometry", "name": "Геометрия FEFCO 0201", "status": "working"},
+            {"code": "orders", "name": "Ручной ввод + импорт изделий", "status": "working"},
+            {"code": "materials", "name": "Импорт сырья 1С", "status": "working_session"},
+            {"code": "compositions", "name": "Композиции", "status": "working_session_catalog"},
+            {"code": "lab", "name": "Импорт лаборатории", "status": "preview"},
+            {"code": "corrugator", "name": "Оптимизатор раскроя + альтернативы", "status": "working"},
+            {"code": "bct", "name": "Расчётный BCT McKee", "status": "working_estimate"},
+            {"code": "machines", "name": "P660 / 2Print / SRPACK", "status": "working_reference"},
+            {"code": "reports", "name": "PDF-отчёты", "status": "ui_scaffold"},
+            {"code": "snapshots", "name": "Snapshots/PostgreSQL", "status": "architecture_ready"},
+            {"code": "full", "name": "Сквозной расчёт заказа", "status": "working_partial_cost"},
+        ],
+    }
+
 
 @app.get("/api/reference/board-grade-norms")
-def board_grade_norms(): return load_grade_norms()
+def board_grade_norms():
+    return load_grade_norms()
+
+
+@app.get("/api/reference/equipment")
 @app.get("/api/reference/equipment-v06")
-def equipment(): return load_equipment_reference()
+def equipment():
+    return load_equipment_reference()
+
+
+@app.get("/api/reference/corrugator")
 @app.get("/api/reference/corrugator-v06")
-def corrugator(): return load_corrugator_reference()
+def corrugator():
+    return load_corrugator_reference()
+
+
 @app.get("/api/reference/fefco0201-profile-rules")
-def fefco_rules(): return load_profile_rules()
+def fefco_rules():
+    return load_profile_rules()
+
+
+@app.get("/api/reference/composition-catalog")
+def composition_catalog():
+    return json.loads((DATA / "composition_catalog_example.json").read_text(encoding="utf-8"))
+
+
 @app.get("/api/reference/1c-import-format")
-def one_c_format(): return json.loads((DATA / "one_c_import_format.json").read_text(encoding="utf-8"))
+def one_c_format():
+    return json.loads((DATA / "one_c_import_format.json").read_text(encoding="utf-8"))
+
+
 @app.get("/api/reference/order-template")
-def order_template(): return FileResponse(STATIC / "KE_BOX_CALC_Шаблон_изделий_v0.7.xlsx")
+def order_template():
+    return FileResponse(STATIC / "KE_BOX_CALC_Шаблон_изделий_v0.7.xlsx")
+
 
 @app.post("/api/calc/fefco0201/profile")
 def calc_fefco(req: FefcoProfileRequest):
     try:
-        return calculate_fefco0201_profile(req.length_mm, req.width_mm, req.height_mm, req.profile,
-            manufacturer_joint_override_mm=req.manufacturer_joint_override_mm, caliper_override_mm=req.caliper_override_mm)
-    except ValueError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return calculate_fefco0201_profile(
+            req.length_mm,
+            req.width_mm,
+            req.height_mm,
+            req.profile,
+            manufacturer_joint_override_mm=req.manufacturer_joint_override_mm,
+            caliper_override_mm=req.caliper_override_mm,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 @app.post("/api/import/orders/preview")
 async def preview_orders(file: UploadFile = File(...)):
-    try: return parse_order_import(await file.read(), file.filename or "items.xlsx")
-    except ImportFormatError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        return parse_order_import(await file.read(), file.filename or "items.xlsx")
+    except ImportFormatError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 @app.post("/api/import/orders/validate")
-def validate_orders(req: ValidateRowsRequest): return validate_order_rows(req.rows)
+def validate_orders(req: ValidateRowsRequest):
+    return validate_order_rows(req.rows)
+
 
 @app.post("/api/import/1c/materials/preview")
 async def preview_1c(file: UploadFile = File(...)):
-    try: return parse_material_import(await file.read(), file.filename or "materials.xlsx")
-    except ImportFormatError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        return parse_material_import(await file.read(), file.filename or "materials.xlsx")
+    except ImportFormatError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 @app.post("/api/import/lab/preview")
 async def preview_lab(file: UploadFile = File(...)):
-    try: return parse_lab_import(await file.read(), file.filename or "lab.xlsx")
-    except ImportFormatError as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        return parse_lab_import(await file.read(), file.filename or "lab.xlsx")
+    except ImportFormatError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 @app.post("/api/calc/full")
 def calc_full(req: FullCalculationRequest):
     try:
         materials = [Material(**x.model_dump()) for x in req.materials]
-        candidates = [CompositionCandidate(code=c.code, board_grade=c.board_grade, profile=c.profile,
-            layers=tuple(CandidateLayer(**x.model_dump()) for x in c.layers), status=c.status, evidence=c.evidence,
-            strength_reserve_pct=c.strength_reserve_pct, lab_pass_count=c.lab_pass_count) for c in req.candidates]
-        return full_calculation([x.model_dump() for x in req.items], req.roll_widths_mm, materials, candidates,
-            req.machine_hourly_costs, CorrugatorConfig(req.working_width_mm, req.max_streams, 2), req.other_waste_pct)
-    except (ValueError, KeyError) as exc: raise HTTPException(status_code=400, detail=str(exc)) from exc
+        candidates = [
+            CompositionCandidate(
+                code=c.code,
+                board_grade=c.board_grade,
+                profile=c.profile,
+                layers=tuple(CandidateLayer(**x.model_dump()) for x in c.layers),
+                status=c.status,
+                evidence=c.evidence,
+                strength_reserve_pct=c.strength_reserve_pct,
+                lab_pass_count=c.lab_pass_count,
+            )
+            for c in req.candidates
+        ]
+        roll_widths = [float(x) for x in req.roll_widths_mm if float(x) > 0]
+        roll_width_source = "manual"
+        if not roll_widths:
+            roll_widths = sorted(
+                {float(m.roll_width_mm) for m in materials if m.roll_width_mm and m.procurement_status != "unavailable"},
+                reverse=True,
+            )
+            roll_width_source = "1c_materials"
+        if not roll_widths:
+            raise ValueError("Не заданы доступные ширины рулонов: введите их вручную или загрузите сырьё из 1С.")
+
+        result = full_calculation(
+            [x.model_dump() for x in req.items],
+            roll_widths,
+            materials,
+            candidates,
+            req.machine_hourly_costs,
+            CorrugatorConfig(req.working_width_mm, req.max_streams, 2),
+            req.other_waste_pct,
+        )
+        result["planning_horizon_days"] = req.planning_horizon_days
+        result["roll_width_source"] = roll_width_source
+        return result
+    except (ValueError, KeyError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
