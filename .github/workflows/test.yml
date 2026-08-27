@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main]
 
+# v0.8 development gate: main stays on the last accepted release until this passes.
 jobs:
   pytest:
     runs-on: ubuntu-latest
