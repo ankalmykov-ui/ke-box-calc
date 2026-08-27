@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 from io import BytesIO
 from pathlib import PurePosixPath
@@ -12,14 +12,20 @@ import xml.etree.ElementTree as ET
 
 
 FIELD_ALIASES: dict[str, tuple[str, ...]] = {
-    "code_1c": ("–∫–æ–¥ 1—Å", "–∫–æ–¥", "–∫–æ–¥ –Ω–æ–º–µ–Ω–∫–ª–∞—Ç—É—Ä—ã", "–∫–æ–¥_1—Å"),
+    "code_1c": ("–∫–æ–¥ 1—Å", "–∫–æ–¥", "–∫–æ–¥ –Ω–æ–º–µ–Ω–∫–ª–∞—Ç—É—Ä—ã", "–∫–æ–¥_1—Å", "–∫–æ–¥ –Ω–æ–º–µ–Ω–∫–ª–∞—Ç—É—Ä—ã 1—Å"),
     "variant_1c": ("—Ö–∞—Ä–∞–∫—Ç–µ—Ä–∏—Å—Ç–∏–∫–∞ 1—Å", "—Ö–∞—Ä–∞–∫—Ç–µ—Ä–∏—Å—Ç–∏–∫–∞", "–≤–∞—Ä–∏–∞–Ω—Ç 1—Å", "–≤–∞—Ä–∏–∞–Ω—Ç", "—Ö–∞—Ä–∞–∫—Ç–µ—Ä–∏—Å—Ç–∏–∫–∞_1—Å"),
     "name": ("–Ω–∞–∏–º–µ–Ω–æ–≤–∞–Ω–∏–µ", "–Ω–æ–º–µ–Ω–∫–ª–∞—Ç—É—Ä–∞", "–º–∞—Ç–µ—Ä–∏–∞–ª"),
     "manufacturer": ("–ø—Ä–æ–∏–∑–≤–æ–¥–∏—Ç–µ–ª—å",),
     "supplier": ("–ø–æ—Å—Ç–∞–≤—â–∏–∫",),
-    "material_type": ("—Ç–∏–ø –º–∞—Ç–µ—Ä–∏–∞–ª–∞", "—Ç–∏–ø", "–≤–∏–¥ –º–∞—Ç–µ—Ä–∏–∞–ª–∞"),
-    "technological_code": ("—Ç–µ—Ö–Ω–æ–ª–æ–≥–∏—á–µ—Å–∫–æ–µ –æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ", "—Ç–µ—Ö –æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ", "–æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ", "—Ç–µ—Ö. –æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ"),
-    "gsm": ("–ø–ª–æ—Ç–Ω–æ—Å—Ç—å –≥/–º¬≤", "–ø–ª–æ—Ç–Ω–æ—Å—Ç—å –≥/–º2", "–ø–ª–æ—Ç–Ω–æ—Å—Ç—å", "–≥—Ä–∞–º–º–∞–∂", "gsm"),
+    "material_type": ("—Ç–∏–ø –º–∞—Ç–µ—Ä–∏–∞–ª–∞", "—Ç–∏–ø", "–≤–∏–¥ –º–∞—Ç–µ—Ä–∏–∞–ª–∞", "—Ç–∏–ø —Å—ã—Ä—å—è", "–≤–∏–¥ —Å—ã—Ä—å—è"),
+    "technological_code": (
+        "—Ç–µ—Ö–Ω–æ–ª–æ–≥–∏—á–µ—Å–∫–æ–µ –æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ",
+        "—Ç–µ—Ö –æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ",
+        "–æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ",
+        "—Ç–µ—Ö. –æ–±–æ–∑–Ω–∞—á–µ–Ω–∏–µ",
+        "—Ç–µ—Ö–Ω–æ–ª–æ–≥–∏—á–µ—Å–∫–∏–π –∫–æ–¥",
+    ),
+    "gsm": ("–ø–ª–æ—Ç–Ω–æ—Å—Ç—å –≥/–º¬≤", "–ø–ª–æ—Ç–Ω–æ—Å—Ç—å –≥/–º2", "–ø–ª–æ—Ç–Ω–æ—Å—Ç—å", "–≥—Ä–∞–º–º–∞–∂", "–≥—Ä–∞–º–º–∞—Ç—É—Ä–∞", "gsm"),
     "roll_width_mm": ("—à–∏—Ä–∏–Ω–∞ —Ä—É–ª–æ–Ω–∞ –º–º", "—à–∏—Ä–∏–Ω–∞ —Ä—É–ª–æ–Ω–∞", "—à–∏—Ä–∏–Ω–∞, –º–º", "—à–∏—Ä–∏–Ω–∞"),
     "price_rub_t": ("—Ü–µ–Ω–∞ ‚ÇΩ/—Ç", "—Ü–µ–Ω–∞ —Ä—É–±/—Ç", "—Ü–µ–Ω–∞ —Ä—É–±./—Ç", "—Ü–µ–Ω–∞", "—Ü–µ–Ω–∞ –∑–∞ —Ç–æ–Ω–Ω—É"),
     "price_date": ("–¥–∞—Ç–∞ —Ü–µ–Ω—ã", "–¥–∞—Ç–∞ –ø—Ä–∞–π—Å–∞", "–¥–∞—Ç–∞ –∞–∫—Ç—É–∞–ª—å–Ω–æ—Å—Ç–∏ —Ü–µ–Ω—ã"),
@@ -111,12 +117,12 @@ def _shared_strings(zf: zipfile.ZipFile) -> list[str]:
 
 def _first_sheet_path(zf: zipfile.ZipFile) -> str:
     ns_main = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
-    ns_rel = {"r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+    rel_doc_ns = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
     wb = ET.fromstring(zf.read("xl/workbook.xml"))
     sheet = wb.find("a:sheets/a:sheet", ns_main)
     if sheet is None:
         raise ImportFormatError("–í XLSX –Ω–µ –Ω–∞–π–¥–µ–Ω–æ –Ω–∏ –æ–¥–Ω–æ–≥–æ –ª–∏—Å—Ç–∞")
-    rel_id = sheet.attrib.get(f"{{{ns_rel['r']}}}id")
+    rel_id = sheet.attrib.get(f"{{{rel_doc_ns}}}id")
     rels = ET.fromstring(zf.read("xl/_rels/workbook.xml.rels"))
     rel_ns = {"r": "http://schemas.openxmlformats.org/package/2006/relationships"}
     for rel in rels.findall("r:Relationship", rel_ns):
@@ -133,10 +139,14 @@ def read_first_sheet_xlsx(content: bytes) -> list[list[object | None]]:
         zf = zipfile.ZipFile(BytesIO(content))
     except zipfile.BadZipFile as exc:
         raise ImportFormatError("–§–∞–π–ª –Ω–µ —è–≤–ª—è–µ—Ç—Å—è –∫–æ—Ä—Ä–µ–∫—Ç–Ω—ã–º XLSX") from exc
+
     with zf:
         shared = _shared_strings(zf)
         sheet_path = _first_sheet_path(zf)
-        root = ET.fromstring(zf.read(sheet_path))
+        try:
+            root = ET.fromstring(zf.read(sheet_path))
+        except KeyError as exc:
+            raise ImportFormatError("–ù–µ —É–¥–∞–ª–æ—Å—å –ø—Ä–æ—á–∏—Ç–∞—Ç—å –ø–µ—Ä–≤—ã–π –ª–∏—Å—Ç XLSX") from exc
         ns = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
         rows: list[list[object | None]] = []
         for row in root.findall(".//a:sheetData/a:row", ns):
@@ -158,7 +168,7 @@ def read_first_sheet_xlsx(content: bytes) -> list[list[object | None]]:
                     except (ValueError, IndexError):
                         value = v.text
                 elif cell_type == "b":
-                    value = (v.text == "1")
+                    value = v.text == "1"
                 elif cell_type in ("str", "e"):
                     value = v.text
                 else:
@@ -216,7 +226,6 @@ def _to_date(value: object | None) -> str | None:
     if isinstance(value, date):
         return value.isoformat()
     if isinstance(value, (int, float)) and 1 <= float(value) <= 100000:
-        # Excel 1900 date system. 1899-12-30 handles Excel's leap-year quirk.
         try:
             return (date(1899, 12, 30) + timedelta(days=int(float(value)))).isoformat()
         except OverflowError:
@@ -239,6 +248,8 @@ def _normalize_status(value: object | None) -> str:
     for key, mapped in STATUS_MAP.items():
         if key in s:
             return mapped
+    if s in {"active", "stock_only", "temporary_no_purchase", "unavailable", "requires_classification"}:
+        return s
     return "requires_classification"
 
 
@@ -248,7 +259,7 @@ def _find_header_row(rows: list[list[object | None]]) -> tuple[int, dict[int, st
         for alias in aliases:
             alias_to_field[_norm(alias)] = field
 
-    best: tuple[int, dict[int, str] | None = None
+    best: tuple[int, dict[int, str]] | None = None
     for ridx, row in enumerate(rows[:30]):
         mapping: dict[int, str] = {}
         for cidx, value in enumerate(row):
@@ -257,11 +268,139 @@ def _find_header_row(rows: list[list[object | None]]) -> tuple[int, dict[int, st
                 mapping[cidx] = alias_to_field[key]
         if best is None or len(mapping) > len(best[1]):
             best = (ridx, mapping)
+
     if best is None or len(best[1]) < 4:
-        raise ImportFormatError("–ù–µ –Ω–∞–π–¥–µ–Ω –∑–∞–≥–æ–ª–æ–≤–æ–∫ —Ç–∞–±–ª–∏—Ü—ã 1–°. –ü—Ä–æ–≤–µ—Ä—å—Ç–µ –Ω–∞–∑–≤–∞–Ω–∏—è —Ä–æ–ª–æ–Ω–æ–∫.")
-    missing = [f for f in REQUIRED_FIELDS if f not in best[1].values()]
+        raise ImportFormatError(
+            "–ù–µ –Ω–∞–π–¥–µ–Ω –∑–∞–≥–æ–ª–æ–≤–æ–∫ —Ç–∞–±–ª–∏—Ü—ã 1–°. –ü—Ä–æ–≤–µ—Ä—å—Ç–µ –Ω–∞–∑–≤–∞–Ω–∏—è –∫–æ–ª–æ–Ω–æ–∫ –∏–ª–∏ –∏—Å–ø–æ–ª—å–∑—É–π—Ç–µ —É—Ç–≤–µ—Ä–∂–¥—ë–Ω–Ω—ã–π —à–∞–±–ª–æ–Ω."
+        )
+    missing = [field for field in REQUIRED_FIELDS if field not in best[1].values()]
     if missing:
-        raise ImportFormatError("–ù–µ —Ö–≤–∞—Ç–∞–µ—Ç –æ–±—è–∑–∞—Ç–µ–ª—å–Ω—ã—Ö –∫–æ–ª–æ–Ω–æ–∫""≤"¬"Ê¶ˆñ‚Ü÷ó76ñÊríê¢&WGW&‚&W7@††¶FVbÊ˜&÷∆ó¶Uˆ÷FW&ñ≈˜&˜w2á&˜w3¢∆ó7E∂∆ó7E∂ˆ&¶V7B¬ÊˆÊU’“¬÷Ö˜&˜w3¢ñÁB“Sí”‚Fñ7C†¢ñbÊ˜B&˜w3†¢&ó6Rñ◊˜'Df˜&÷DW'&˜"Ç-
-Mù≤˝=""ê¢ÜVFW%ˆñGÇ¬6ˆ∆÷“ˆfñÊEˆÜVFW%˜&˜rá&˜w2ê¢Ê˜&÷∆ó¶VC¢∆ó7E¥÷FW&ñƒñ◊˜'E&˜u““µ–¢ó77VW3¢∆ó7E¥ñ◊˜'Dó77VU““µ–†¢f˜"WÜ6V≈ˆñGÇ¬&˜rñ‚VÁV÷W&FRá&˜w5∂ÜVFW%ˆñGÇ≤¢ÜVFW%ˆñGÇ≤≤÷Ö˜&˜w5“¬7F'C÷ÜVFW%ˆñGÇ≤"ì†¢ñbÊ˜BÁíábÊ˜Bñ‚ÑÊˆÊR¬""íf˜"bñ‚&˜rì†¢6ˆÁFñÁVP¢&s¢Fñ7E∑7G"¬ˆ&¶V7B¬ÊˆÊU““∑–¢f˜"6ñGÇ¬fñV∆Bñ‚6ˆ∆÷ÊóFV◊2Çì†¢&u∂fñV∆E““&˜u∂6ñGÖ“ñb6ñGÇ¬∆V‚á&˜ríV«6RÊˆÊP†¢6ˆFR“""ñb&rÊvWBÇ&6ˆFUÛ2"íó2ÊˆÊRV«6R7G"á&rÊvWBÇ&6ˆFUÛ2"ííÁ7G&óÇê¢Ê÷R“""ñb&rÊvWBÇ&Ê÷R"íó2ÊˆÊRV«6R7G"á&rÊvWBÇ&Ê÷R"ííÁ7G&óÇê¢◊GóR“""ñb&rÊvWBÇ&÷FW&ñ≈˜GóR"íó2ÊˆÊRV«6R7G"á&rÊvWBÇ&÷FW&ñ≈˜GóR"ííÁ7G&óÇê¢w6““˜Fıˆf∆ˆBá&rÊvWBÇ&w6“"íê¢vñGFÇ“˜Fıˆf∆ˆBá&rÊvWBÇ'&ˆ∆≈˜vñGFÖˆ÷“"íê¢&ñ6R“˜Fıˆf∆ˆBá&rÊvWBÇ'&ñ6U˜'V%˜B"íê¢7Fˆ6≤“˜Fıˆf∆ˆBá&rÊvWBÇ'7Fˆ6µˆ∂r"íê†¢&˜uˆW'&˜'2“f«6P¢f˜"fñV∆B¬f¬ñ‚ÇÇ&6ˆFUÛ2"¬6ˆFRí¬Ç&Ê÷R"¬Ê÷Rí¬Ç&÷FW&ñ≈˜GóR"¬◊GóRíì†¢ñbÊ˜Bf√†¢ó77VW2ÊVÊBÑñ◊˜'Dó77VRÜWÜ6V≈ˆñGÇ¬fñV∆B¬-Ì˝}-]ΩÕ›ÌR˝ÌΩR˝=-‚"¬&rÊvWBÜfñV∆Bííê¢&˜uˆW'&˜'2“G'VP¢f˜"fñV∆B¬f¬ñ‚ÇÇ&w6“"¬w6“í¬Ç'&ˆ∆≈˜vñGFÖˆ÷“"¬vñGFÇí¬Ç'&ñ6U˜'V%˜B"¬&ñ6Ríì†¢ñbf¬ó2ÊˆÊR˜"f¬√“†¢ó77VW2ÊVÊBÑñ◊˜'Dó77VRÜWÜ6V≈ˆñGÇ¬fñV∆B¬-ÌmçM]-Ú}çΩ‚ÌΩÕçR›=ΩÚ"¬&rÊvWBÜfñV∆Bííê¢&˜uˆW'&˜'2“G'VP¢ñb7Fˆ6≤ó2Ê˜BÊˆÊRÊB7Fˆ6≤¬†¢ó77VW2ÊVÊBÑñ◊˜'Dó77VRÜWÜ6V≈ˆñGÇ¬'7Fˆ6µˆ∂r"¬-Ì--Ì¢›RÕÌm]"Ω-¬Ì-çm-]ΩÕ›Ω¬"¬&rÊvWBÇ'7Fˆ6µˆ∂r"ííê¢&˜uˆW'&˜'2“G'VP¢ñb&˜uˆW'&˜'3†¢6ˆÁFñÁVP†¢Ê˜&÷∆ó¶VBÊVÊBÄ¢÷FW&ñƒñ◊˜'E&˜rÄ¢&˜uˆÁV÷&W#÷WÜ6V≈ˆñGÇ¿¢6ˆFUÛ3÷6ˆFR¿¢f&ñÁEÛ3“á7G"á&rÊvWBÇ'f&ñÁEÛ2"ííÁ7G&óÇíñb&rÊvWBÇ'f&ñÁEÛ2"íÊ˜Bñ‚ÑÊˆÊR¬""íV«6RÊˆÊRí¿¢Ê÷S÷Ê÷R¿¢÷ÁVf7GW&W#“á7G"á&rÊvWBÇ&÷ÁVf7GW&W""ííÁ7G&óÇíñb&rÊvWBÇ&÷ÁVf7GW&W""íÊ˜Bñ‚ÑÊˆÊR¬""íV«6RÊˆÊRí¿¢7W∆ñW#“á7G"á&rÊvWBÇ'7W∆ñW""ííÁ7G&óÇíñb&rÊvWBÇ'7W∆ñW""íÊ˜Bñ‚ÑÊˆÊR¬""íV«6RÊˆÊRí¿¢÷FW&ñ≈˜GóS÷◊GóR¿¢FV6ÜÊˆ∆ˆvñ6≈ˆ6ˆFS“á7G"á&rÊvWBÇ'FV6ÜÊˆ∆ˆvñ6≈ˆ6ˆFR"ííÁ7G&óÇíñb&rÊvWBÇ'FV6ÜÊˆ∆ˆvñ6≈ˆ6ˆFR"íÊ˜Bñ‚ÑÊˆÊR¬""íV«6RÊˆÊRí¿¢w6”÷f∆ˆBÜw6“í¿¢&ˆ∆≈˜vñGFÖˆ÷”÷f∆ˆBávñGFÇí¿¢&ñ6U˜'V%˜C÷f∆ˆBá&ñ6Rí¿¢&ñ6UˆFFS’˜FıˆFFRá&rÊvWBÇ'&ñ6UˆFFR"íí¿¢7Fˆ6µˆ∂s“Üf∆ˆBá7Fˆ6≤íñb7Fˆ6≤ó2Ê˜BÊˆÊRV«6RÊˆÊRí¿¢7Fˆ6µˆFFS’˜FıˆFFRá&rÊvWBÇ'7Fˆ6µˆFFR"íí¿¢&ˆ7W&V÷VÁE˜7FGW3’ˆÊ˜&÷∆ó¶U˜7FGW2á&rÊvWBÇ'&ˆ7W&V÷VÁE˜7FGW2"íí¿¢6ˆ∆˜#“á7G"á&rÊvWBÇ&6ˆ∆˜""ííÁ7G&óÇíñb&rÊvWBÇ&6ˆ∆˜""íÊ˜Bñ‚ÑÊˆÊR¬""íV«6RÊˆÊRí¿¢ê¢ê†¢∂Wó2“≤á"Ê6ˆFUÛ2¬"Áf&ñÁEÛ2˜"""íf˜""ñ‚Ê˜&÷∆ó¶VE–¢GW∆ñ6FW2“∆V‚Ü∂Wó2í“∆V‚á6WBÜ∂Wó2íê¢ñbGW∆ñ6FW3†¢ó77VW2ÊVÊBÑñ◊˜'Dó77VRÉ¬&∂Wí"¬b-"MùΩR›ùM]›‚˝Ì--ÌÌ"≠ΩÌ}	≠ÌB
-≤
-]≠-]ç-ç≠¢∂GW∆ñ6FW7“"íê†¢&WGW&‚∞¢&f˜&÷B#¢$¥UÙ$ıÖÙ4ƒ5Û5Ù‘DU$î≈5˜c"¿¢&ÜVFW%˜&˜r#¢ÜVFW%ˆñGÇ≤¿¢&6ˆ«V÷Âˆ÷ñÊr#¢∑7G"Ü6ñGÇ≤ì¢fñV∆Bf˜"6ñGÇ¬fñV∆Bñ‚6ˆ∆÷ÊóFV◊2Çó“¿¢'7FG2#¢∞¢'&˜w5˜&VB#¢÷ÇÉ¬÷ñ‚Ü∆V‚á&˜w2í“ÜVFW%ˆñGÇ“¬÷Ö˜&˜w2íí¿¢'&˜w5˜f∆ñB#¢∆V‚ÜÊ˜&÷∆ó¶VBí¿¢&ó77VW2#¢∆V‚Üó77VW2í¿¢&GW∆ñ6FUˆ∂Wó2#¢GW∆ñ6FW2¿¢“¿¢'&˜w2#¢∂6Fñ7Bá"íf˜""ñ‚Ê˜&÷∆ó¶VE“¿¢&ó77VW2#¢∂6Fñ7BÜííf˜"íñ‚ó77VW5≥£#’“¿¢–††¶FVb'6Uˆ÷FW&ñ≈ˆñ◊˜'BÜ6ˆÁFVÁC¢'óFW2¬fñ∆VÊ÷S¢7G"í”‚Fñ7C†¢WáB“fñ∆VÊ÷RÊ∆˜vW"ÇíÁ'7∆óBÇ"‚"¬ï≤”“ñb"‚"ñ‚fñ∆VÊ÷RV«6R" ¢ñbWáB”“'Ü«7Ç#†¢&˜w2“&VEˆfó'7E˜6ÜVWE˜Ü«7ÇÜ6ˆÁFVÁBê¢V∆ñbWáBñ‚Ç&77b"¬'GáB"ì†¢&˜w2“&VEˆ77bÜ6ˆÁFVÁBê¢V«6S†¢&ó6Rñ◊˜'Df˜&÷DW'&˜"Ç-	˝ÌMM]mç-Ì-ÚÑ≈5ÇÇ55b"ê¢&WGW&‚Ê˜&÷∆ó¶Uˆ÷FW&ñ≈˜&˜w2á&˜w2ê
+        raise ImportFormatError("–ù–µ —Ö–≤–∞—Ç–∞–µ—Ç –æ–±—è–∑–∞—Ç–µ–ª—å–Ω—ã—Ö –∫–æ–ª–æ–Ω–æ–∫: " + ", ".join(missing))
+    return best
+
+
+def _text(value: object | None) -> str | None:
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s or None
+
+
+def _validate_row(raw: dict[str, object | None], row_number: int) -> tuple[MaterialImportRow | None, list[ImportIssue]]:
+    issues: list[ImportIssue] = []
+
+    def issue(field: str, message: str, value: object | None = None) -> None:
+        issues.append(ImportIssue(row_number=row_number, field=field, message=message, value=value))
+
+    code = _text(raw.get("code_1c"))
+    name = _text(raw.get("name"))
+    material_type = _text(raw.get("material_type"))
+    gsm = _to_float(raw.get("gsm"))
+    width = _to_float(raw.get("roll_width_mm"))
+    price = _to_float(raw.get("price_rub_t"))
+    stock = _to_float(raw.get("stock_kg"))
+
+    if not code:
+        issue("code_1c", "–ù–µ —É–∫–∞–∑–∞–Ω –∫–æ–¥ –Ω–æ–º–µ–Ω–∫–ª–∞—Ç—É—Ä—ã 1–°", raw.get("code_1c"))
+    if not name:
+        issue("name", "–ù–µ —É–∫–∞–∑–∞–Ω–æ –Ω–∞–∏–º–µ–Ω–æ–≤–∞–Ω–∏–µ –º–∞—Ç–µ—Ä–∏–∞–ª–∞", raw.get("name"))
+    if not material_type:
+        issue("material_type", "–ù–µ —É–∫–∞–∑–∞–Ω —Ç–∏–ø —Å—ã—Ä—å—è; –º–∞—Ç–µ—Ä–∏–∞–ª –Ω–µ–ª—å–∑—è –∞–≤—Ç–æ–º–∞—Ç–∏—á–µ—Å–∫–∏ –∫–ª–∞—Å—Å–∏—Ñ–∏—Ü–∏—Ä–æ–≤–∞—Ç—å", raw.get("material_type"))
+    if gsm is None or gsm <= 0:
+        issue("gsm", "–ì—Ä–∞–º–º–∞—Ç—É—Ä–∞ –¥–æ–ª–∂–Ω–∞ –±—ã—Ç—å –±–æ–ª—å—à–µ 0", raw.get("gsm"))
+    if width is None or width <= 0:
+        issue("roll_width_mm", "–®–∏—Ä–∏–Ω–∞ —Ä—É–ª–æ–Ω–∞ –¥–æ–ª–∂–Ω–∞ –±—ã—Ç—å –±–æ–ª—å—à–µ 0", raw.get("roll_width_mm"))
+    if price is None or price <= 0:
+        issue("price_rub_t", "–¶–µ–Ω–∞ –¥–æ–ª–∂–Ω–∞ –±—ã—Ç—å –±–æ–ª—å—à–µ 0", raw.get("price_rub_t"))
+    if stock is not None and stock < 0:
+        issue("stock_kg", "–û—Å—Ç–∞—Ç–æ–∫ –Ω–µ –º–æ–∂–µ—Ç –±—ã—Ç—å –æ—Ç—Ä–∏—Ü–∞—Ç–µ–ª—å–Ω—ã–º", raw.get("stock_kg"))
+
+    status = _normalize_status(raw.get("procurement_status"))
+    if status == "requires_classification" and raw.get("procurement_status") not in (None, ""):
+        issue(
+            "procurement_status",
+            "–°—Ç–∞—Ç—É—Å –Ω–µ —Ä–∞—Å–ø–æ–∑–Ω–∞–Ω; –º–∞—Ç–µ—Ä–∏–∞–ª –ø–æ–º–µ—á–µ–Ω –∫–∞–∫ —Ç—Ä–µ–±—É—é—â–∏–π –∫–ª–∞—Å—Å–∏—Ñ–∏–∫–∞—Ü–∏–∏",
+            raw.get("procurement_status"),
+        )
+
+    fatal_fields = {"code_1c", "name", "material_type", "gsm", "roll_width_mm", "price_rub_t", "stock_kg"}
+    if any(x.field in fatal_fields for x in issues):
+        return None, issues
+
+    return MaterialImportRow(
+        row_number=row_number,
+        code_1c=code or "",
+        variant_1c=_text(raw.get("variant_1c")),
+        name=name or "",
+        manufacturer=_text(raw.get("manufacturer")),
+        supplier=_text(raw.get("supplier")),
+        material_type=material_type or "",
+        technological_code=_text(raw.get("technological_code")),
+        gsm=float(gsm),
+        roll_width_mm=float(width),
+        price_rub_t=float(price),
+        price_date=_to_date(raw.get("price_date")),
+        stock_kg=float(stock) if stock is not None else None,
+        stock_date=_to_date(raw.get("stock_date")),
+        procurement_status=status,
+        color=_text(raw.get("color")),
+    ), issues
+
+
+def parse_material_import(content: bytes, filename: str) -> dict:
+    lower = filename.lower()
+    if lower.endswith(".xlsx"):
+        rows = read_first_sheet_xlsx(content)
+    elif lower.endswith((".csv", ".txt")):
+        rows = read_csv(content)
+    else:
+        raise ImportFormatError("–ü–æ–¥–¥–µ—Ä–∂–∏–≤–∞—é—Ç—Å—è XLSX –∏ CSV")
+
+    if not rows:
+        raise ImportFormatError("–§–∞–π–ª –ø—É—Å—Ç")
+
+    header_index, mapping = _find_header_row(rows)
+    parsed: list[MaterialImportRow] = []
+    issues: list[ImportIssue] = []
+    seen: set[tuple[str, str]] = set()
+    total_data_rows = 0
+
+    for row_index, row in enumerate(rows[header_index + 1 :], start=header_index + 2):
+        if not any(value not in (None, "") for value in row):
+            continue
+        total_data_rows += 1
+        raw = {field: row[col] if col < len(row) else None for col, field in mapping.items()}
+        item, row_issues = _validate_row(raw, row_index)
+        issues.extend(row_issues)
+        if item is None:
+            continue
+
+        key = (item.code_1c.strip().upper(), (item.variant_1c or "").strip().upper())
+        if key in seen:
+            issues.append(
+                ImportIssue(
+                    row_number=row_index,
+                    field="duplicate",
+                    message="–ü–æ–≤—Ç–æ—Ä –∫–æ–¥–∞ 1–° + —Ö–∞—Ä–∞–∫—Ç–µ—Ä–∏—Å—Ç–∏–∫–∏ –≤–Ω—É—Ç—Ä–∏ –∏–º–ø–æ—Ä—Ç–∏—Ä—É–µ–º–æ–≥–æ —Ñ–∞–π–ª–∞",
+                    value=" / ".join(x for x in key if x),
+                )
+            )
+            continue
+        seen.add(key)
+        parsed.append(item)
+
+    rows_out = [asdict(x) for x in parsed]
+    issues_out = [asdict(x) for x in issues]
+    return {
+        "format": "KE_BOX_CALC_1C_MATERIALS_v1",
+        "file_name": filename,
+        "header_row": header_index + 1,
+        "rows": rows_out,
+        "issues": issues_out[:500],
+        "stats": {
+            "rows_total": total_data_rows,
+            "rows_valid": len(rows_out),
+            "rows_invalid": max(0, total_data_rows - len(rows_out)),
+            "issues": len(issues_out),
+        },
+    }
