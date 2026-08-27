@@ -15,6 +15,8 @@ const state = {
 const money = v => v == null ? "—" : new Intl.NumberFormat("ru-RU",{maximumFractionDigits:0}).format(v) + " ₽";
 const num = (v,d=1) => v == null ? "—" : new Intl.NumberFormat("ru-RU",{maximumFractionDigits:d}).format(v);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+let validationTimer = null;
+let validationTicket = 0;
 
 async function api(url,opt){
   const r = await fetch(url,opt);
@@ -50,6 +52,7 @@ function syncProductType(){
   const isSheet=$("productType").value==="sheet";
   $("fefcoFields").classList.toggle("hidden",isSheet);
   $("sheetFields").classList.toggle("hidden",!isSheet);
+  scheduleCurrentItemValidation();
 }
 function currentItem(){
   const isSheet=$("productType").value==="sheet";
@@ -87,14 +90,62 @@ function validateItem(x){
   if(x.product_type==="sheet" && (!(x.blank_length_mm>0)||!(x.blank_width_mm>0))) return "Для листа нужны длина и ширина заготовки";
   return null;
 }
+function scheduleCurrentItemValidation(){
+  clearTimeout(validationTimer);
+  validationTimer=setTimeout(()=>validateCurrentItem(false),220);
+}
+function validationList(rows){
+  return (rows||[]).map(row=>`<div>${esc(row.message)}</div>`).join("");
+}
+async function validateCurrentItem(showToast=false){
+  const x=currentItem(), basicError=validateItem(x), el=$("geometryPreview");
+  if(basicError){
+    el.className="inline-result bad";
+    el.textContent=basicError;
+    return {valid:false,errors:[{message:basicError}]};
+  }
+  const ticket=++validationTicket;
+  try{
+    const d=await api("/api/validate/item",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({item:x,working_width_mm:+$("gaWidth").value||2100})
+    });
+    if(ticket!==validationTicket)return d;
+    const item=d.prepared_item||{}, flute=item.flute_direction;
+    const geometry=item.geometry;
+    const blank=`${item.blank_length_mm} × ${item.blank_width_mm} мм`;
+    const status=d.valid
+      ?`<div><b>Заготовка ${blank}</b> проходит первичную проверку.</div>`
+      :validationList(d.errors);
+    const direction=flute
+      ?`<div>Направление гофры: <b>${esc(flute.label)}</b>; поворот заготовки при раскрое запрещён.</div>`
+      :"";
+    const panels=geometry?.panels||{};
+    const panelLine=geometry
+      ?`<div class="muted">Панели: ${[panels.L1_mm,panels.B1_mm,panels.L2_mm,panels.B2_mm].filter(v=>v!=null).join(" / ")} мм</div>`
+      :"";
+    const warningLine=validationList(d.warnings);
+    el.className=`inline-result ${d.valid?(d.warnings?.length?"warn":"good"):"bad"}`;
+    el.innerHTML=status+direction+panelLine+warningLine;
+    if(showToast&&!d.valid)toast(d.errors?.[0]?.message||"Формат не проходит ограничения",true);
+    return d;
+  }catch(e){
+    if(ticket!==validationTicket)return {valid:false,errors:[{message:e.message}]};
+    el.className="inline-result bad";el.textContent=e.message;
+    if(showToast)toast(e.message,true);
+    return {valid:false,errors:[{message:e.message}]};
+  }
+}
 function resetResult(){
   state.result=null;
   renderResultEmpty();
   $("snapshotPreview").textContent="Сначала выполните расчёт.";
 }
-function addItem(){
+async function addItem(){
   const x=currentItem(), err=validateItem(x);
   if(err){toast(err,true);return}
+  const validation=await validateCurrentItem(true);
+  if(!validation?.valid)return;
   state.order.push(x); resetResult(); renderOrder(); persist(); toast("Позиция добавлена");
 }
 function removeItem(i){ state.order.splice(i,1); resetResult(); renderOrder(); persist(); }
@@ -102,6 +153,7 @@ function renderOrder(){
   $("orderCount").textContent=state.order.length;
   const totalQty=state.order.reduce((s,x)=>s+(+x.quantity||0),0);
   $("orderSummary").textContent=state.order.length?`${state.order.length} поз. · ${new Intl.NumberFormat("ru-RU").format(totalQty)} шт`:"Пока нет изделий.";
+  document.querySelectorAll(".calculate-order-btn").forEach(btn=>btn.disabled=!state.order.length);
   const el=$("orderTable");
   if(!state.order.length){el.className="table-wrap empty-state";el.innerHTML="Добавьте первое изделие или загрузите файл.";return}
   el.className="table-wrap";
@@ -113,16 +165,7 @@ function renderOrder(){
   }</tbody></table>`;
 }
 async function previewGeometry(){
-  try{
-    const x=currentItem();
-    if(x.product_type==="sheet"){ $("geometryPreview").innerHTML=`Лист: <b>${x.blank_length_mm} × ${x.blank_width_mm} мм</b> · площадь ${num(x.blank_length_mm*x.blank_width_mm/1e6,4)} м²`; return; }
-    const body={length_mm:x.length_mm,width_mm:x.width_mm,height_mm:x.height_mm,profile:x.profile};
-    if(x.manufacturer_joint_mm) body.manufacturer_joint_override_mm=x.manufacturer_joint_mm;
-    if(x.caliper_mm) body.caliper_override_mm=x.caliper_mm;
-    const d=await api("/api/calc/fefco0201/profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-    const b=d.blank,p=d.panels||{};
-    $("geometryPreview").innerHTML=`Заготовка <b>${b.length_mm} × ${b.width_mm} мм</b> · ${num(b.area_m2,4)} м²<br><span class="muted">Панели: ${[p.L1_mm,p.B1_mm,p.L2_mm,p.B2_mm].filter(v=>v!=null).join(" / ")||"см. расчёт"} мм</span>`;
-  }catch(e){toast(e.message,true)}
+  await validateCurrentItem(true);
 }
 function clearOrder(){
   state.order=[];state.previewOrders=[];resetResult();renderOrder();
@@ -234,8 +277,6 @@ async function calculateOrder(){
       roll_widths_mm:rollWidths(),
       working_width_mm:+$("gaWidth").value||2100,
       max_streams:+$("maxStreams").value||5,
-      other_waste_pct:+$("otherWaste").value||0,
-      planning_horizon_days:+$("planningHorizon").value||1,
       materials:state.materials,
       candidates:state.candidates,
       machine_hourly_costs:getRates()
@@ -265,7 +306,8 @@ function renderResult(){
   $("rollSource").textContent=d.roll_width_source==="1c_materials"?"ширины: из 1С":"ширины: вручную";
   $("resultItems").innerHTML=d.items.map(x=>{
     const size=x.product_type==="SHEET"?`${x.blank_length_mm}×${x.blank_width_mm}`:`${x.length_mm}×${x.width_mm}×${x.height_mm}`;
-    return `<div class="result-row"><div class="result-row-head"><div><strong>${esc(x.code)}</strong> · ${esc(x.product_type)}</div><span class="pill">${esc(x.profile)} / ${esc(x.required_board_grade)}</span></div><div class="subgrid"><div class="kv"><span>Изделие</span><b>${size} мм</b></div><div class="kv"><span>Заготовка</span><b>${x.blank_length_mm}×${x.blank_width_mm} мм</b></div><div class="kv"><span>Площадь 1 шт.</span><b>${num(x.blank_area_m2,4)} м²</b></div><div class="kv"><span>Количество</span><b>${x.quantity} шт.</b></div></div><div class="notice good">${strengthHTML(x)}</div></div>`
+    const flute=x.flute_direction?.label||"—";
+    return `<div class="result-row"><div class="result-row-head"><div><strong>${esc(x.code)}</strong> · ${esc(x.product_type)}</div><span class="pill">${esc(x.profile)} / ${esc(x.required_board_grade)}</span></div><div class="subgrid"><div class="kv"><span>Изделие</span><b>${size} мм</b></div><div class="kv"><span>Заготовка</span><b>${x.blank_length_mm}×${x.blank_width_mm} мм</b></div><div class="kv"><span>Направление гофры</span><b>${esc(flute)}</b></div><div class="kv"><span>Площадь 1 шт.</span><b>${num(x.blank_area_m2,4)} м²</b></div><div class="kv"><span>Количество</span><b>${x.quantity} шт.</b></div></div><div class="notice good">${strengthHTML(x)}</div></div>`
   }).join("");
 
   $("layoutResults").innerHTML=d.corrugator.map(g=>`<div class="launch-card"><div class="launch-head"><div><strong>Профиль ${esc(g.profile)}</strong><div class="muted">${g.launches.length} запуск(а)</div></div></div>${g.launches.map((l,idx)=>layoutHTML(l,idx)).join("")}</div>`).join("");
@@ -298,6 +340,7 @@ async function loadReferences(){
     $("apiState").textContent=`API ${mods.version}`;$("apiState").className="status-dot ok";
     state.norms=norms;state.equipment=equip;
     renderGradeOptions();renderNorms();renderEquipment();renderMachineRates();renderCompositionLayers();
+    scheduleCurrentItemValidation();
   }catch(e){
     $("apiState").textContent="API недоступен";$("apiState").className="status-dot bad";toast(e.message,true);
   }
@@ -334,6 +377,8 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.querySelectorAll(".nav-btn").forEach(b=>b.addEventListener("click",()=>showView(b.dataset.view)));
   $("quickModeBtn").addEventListener("click",()=>setMode("quick"));
   $("engineerModeBtn").addEventListener("click",()=>setMode("engineer"));
+  ["lengthMm","widthMm","heightMm","blankLengthMm","blankWidthMm","quantity","colors","jointMm","caliperMm","gaWidth"].forEach(id=>$(id)?.addEventListener("input",scheduleCurrentItemValidation));
+  ["profile","boardGrade","dieCut"].forEach(id=>$(id)?.addEventListener("change",scheduleCurrentItemValidation));
   setMode(state.mode);syncProductType();renderOrder();renderCompositions();renderResultEmpty();loadReferences();persist();
   if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 });

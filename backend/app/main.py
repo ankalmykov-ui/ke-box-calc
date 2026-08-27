@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from .calc.corrugator import CorrugatorConfig, load_corrugator_reference
 from .calc.fefco0201 import calculate_fefco0201_profile, load_profile_rules
-from .calc.full import full_calculation
+from .calc.full import full_calculation, prepare_order_item, validate_prepared_item
 from .calc.grade import load_grade_norms
 from .calc.machines import load_equipment_reference
 from .calc.optimizer import CandidateLayer, CompositionCandidate, Material
@@ -94,9 +94,14 @@ class FullCalculationRequest(BaseModel):
     candidates: list[CandidateRequest] = Field(default_factory=list)
     machine_hourly_costs: dict[str, float] = Field(default_factory=dict)
     other_waste_pct: float = Field(default=0, ge=0, lt=100)
-    working_width_mm: float = 2100
-    max_streams: int = 5
+    working_width_mm: float = Field(default=2100, gt=0)
+    max_streams: int = Field(default=5, gt=0)
     planning_horizon_days: int = Field(default=1, ge=1, le=3)
+
+
+class ItemValidationRequest(BaseModel):
+    item: OrderItemRequest
+    working_width_mm: float = Field(default=2100, gt=0)
 
 
 class ValidateRowsRequest(BaseModel):
@@ -194,6 +199,15 @@ def calc_fefco(req: FefcoProfileRequest):
             caliper_override_mm=req.caliper_override_mm,
         )
     except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/validate/item")
+def validate_item(req: ItemValidationRequest):
+    try:
+        prepared = prepare_order_item(req.item.model_dump())
+        return validate_prepared_item(prepared, req.working_width_mm)
+    except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

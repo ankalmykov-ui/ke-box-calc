@@ -1,6 +1,8 @@
 import json
+import pytest
+from fastapi import HTTPException
 
-from app.calc.full import prepare_order_item, estimate_bct_mckee
+from app.calc.full import prepare_order_item, estimate_bct_mckee, validate_prepared_item
 from app.calc.machines import evaluate_machine, load_equipment_reference
 from app.calc.optimizer import Material
 from app.main import FullCalculationRequest, MaterialRequest, OrderItemRequest, calc_full
@@ -19,6 +21,60 @@ def test_control_card_990_geometry_is_preserved():
     })
     assert item["blank_length_mm"] == 1599
     assert item["blank_width_mm"] == 540
+
+
+def test_fefco_flute_direction_is_locked_to_box_height():
+    item = prepare_order_item({
+        "code": "A",
+        "product_type": "0201",
+        "length_mm": 450,
+        "width_mm": 326,
+        "height_mm": 210,
+        "quantity": 1,
+        "required_board_grade": "T23.1",
+        "profile": "C",
+    })
+    direction = item["flute_direction"]
+    assert direction["rule"] == "along_box_height"
+    assert direction["blank_axis"] == "blank_width_mm"
+    assert direction["blank_dimension_mm"] == item["blank_width_mm"]
+    assert direction["rotation_allowed"] is False
+
+
+def test_oversized_item_fails_preflight_before_bct_result():
+    item = prepare_order_item({
+        "code": "TOO-BIG",
+        "product_type": "0201",
+        "length_mm": 2700,
+        "width_mm": 3590,
+        "height_mm": 3000,
+        "quantity": 1000,
+        "required_board_grade": "T23.1",
+        "profile": "C",
+    })
+    validation = validate_prepared_item(item, working_width_mm=2100)
+    assert validation["valid"] is False
+    assert any(x["code"] == "corrugator_working_width" for x in validation["errors"])
+    assert any(x["code"] == "processing_machine_format" for x in validation["errors"])
+
+    req = FullCalculationRequest(
+        items=[OrderItemRequest(
+            code="TOO-BIG",
+            product_type="0201",
+            length_mm=2700,
+            width_mm=3590,
+            height_mm=3000,
+            quantity=1000,
+            required_board_grade="T23.1",
+            profile="C",
+        )],
+        roll_widths_mm=[2150],
+        working_width_mm=2100,
+    )
+    with pytest.raises(HTTPException) as exc:
+        calc_full(req)
+    assert exc.value.status_code == 400
+    assert "Гофра должна идти по высоте H" in exc.value.detail
 
 
 def test_bct_uses_normative_ect_label_only():

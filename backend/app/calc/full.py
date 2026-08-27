@@ -32,6 +32,14 @@ def prepare_order_item(item: dict) -> dict:
             "blank_width_mm": blank["width_mm"],
             "blank_area_m2": blank["area_m2"],
             "geometry": geo,
+            "flute_direction": {
+                "rule": "along_box_height",
+                "label": "по высоте H",
+                "box_axis": "H",
+                "blank_axis": "blank_width_mm",
+                "blank_dimension_mm": blank["width_mm"],
+                "rotation_allowed": False,
+            },
         }
     if product_type in {"sheet", "лист", "blank"}:
         a = float(item.get("blank_length_mm") or item.get("length_mm") or 0)
@@ -46,8 +54,76 @@ def prepare_order_item(item: dict) -> dict:
             "blank_width_mm": b,
             "blank_area_m2": round(a * b / 1_000_000, 6),
             "geometry": None,
+            "flute_direction": None,
         }
     raise ValueError(f"Тип изделия {product_type} не поддерживается в v1.0")
+
+
+def validate_prepared_item(item: dict, working_width_mm: float = 2100) -> dict:
+    """Validate an item before BCT, layout and cost are presented as usable."""
+    if working_width_mm <= 0:
+        raise ValueError("Рабочая ширина гофроагрегата должна быть больше нуля")
+
+    errors: list[dict] = []
+    warnings: list[dict] = []
+    processing = None
+    blank_width = float(item["blank_width_mm"])
+
+    if blank_width > working_width_mm + 1e-9:
+        if item["product_type"] == "FEFCO 0201":
+            message = (
+                f"Гофра должна идти по высоте H, поэтому размер заготовки "
+                f"{blank_width:g} мм располагается по ширине гофроагрегата "
+                f"и превышает рабочую ширину {working_width_mm:g} мм."
+            )
+        else:
+            message = (
+                f"Ширина заготовки {blank_width:g} мм превышает рабочую ширину "
+                f"гофроагрегата {working_width_mm:g} мм."
+            )
+        errors.append({"code": "corrugator_working_width", "message": message})
+
+    if item["product_type"] == "FEFCO 0201":
+        geo = item["geometry"]
+        processing = select_machine(
+            blank_length_mm=float(item["blank_length_mm"]),
+            blank_width_mm=blank_width,
+            profile=str(item.get("profile") or ""),
+            caliper_mm=float(geo["profile_rule"]["caliper_mm"]),
+            panels=geo["panels"],
+            colors=int(item.get("colors") or 1),
+            die_cut=bool(item.get("die_cut") or False),
+            quantity=int(item["quantity"]),
+            hourly_cost_rub=None,
+        )
+        recommended = processing.get("recommended")
+        if recommended is None:
+            errors.append({
+                "code": "processing_machine_format",
+                "message": (
+                    f"Заготовка {item['blank_length_mm']:g}×{blank_width:g} мм "
+                    "не проходит ни на одной перерабатывающей машине из справочника."
+                ),
+                "machines": [
+                    {
+                        "code": row.get("code"),
+                        "name": row.get("name"),
+                        "reasons": row.get("reasons") or [],
+                    }
+                    for row in processing.get("excluded") or []
+                ],
+            })
+        else:
+            for message in recommended.get("warnings") or []:
+                warnings.append({"code": "machine_reference", "message": message})
+
+    return {
+        "valid": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "prepared_item": item,
+        "processing": processing,
+    }
 
 
 def estimate_bct_mckee(item: dict) -> dict | None:
@@ -99,11 +175,21 @@ def full_calculation(
     corrugator_config: CorrugatorConfig | None = None,
     other_waste_pct: float = 0,
 ) -> dict:
+    corrugator_config = corrugator_config or CorrugatorConfig()
     prepared = [prepare_order_item(x) for x in order_items]
+    validation_errors = []
+    for item in prepared:
+        validation = validate_prepared_item(item, corrugator_config.working_width_mm)
+        validation_errors.extend(
+            f"{item.get('code') or 'Позиция'}: {row['message']}"
+            for row in validation["errors"]
+        )
+    if validation_errors:
+        raise ValueError(" ".join(validation_errors))
+
     for item in prepared:
         item["strength"] = estimate_bct_mckee(item)
 
-    corrugator_config = corrugator_config or CorrugatorConfig()
     machine_hourly_costs = machine_hourly_costs or {}
     materials = materials or []
     composition_candidates = composition_candidates or []
