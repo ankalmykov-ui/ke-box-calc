@@ -18,8 +18,9 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({"&":"&amp;","<":"&lt
 
 async function api(url,opt){
   const r = await fetch(url,opt);
+  const body = await r.text();
   let d;
-  try { d = await r.json(); } catch { d = {detail: await r.text()}; }
+  try { d = body ? JSON.parse(body) : {}; } catch { d = {detail: body || `HTTP ${r.status}`}; }
   if(!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
   return d;
 }
