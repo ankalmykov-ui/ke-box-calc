@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from dataclasses import asdict
 
 from .corrugator import CorrugatorConfig, CorrugatorItem, optimize_corrugator_group
 from .fefco0201 import calculate_fefco0201_profile
-from .grade import strongest_grade
+from .grade import strongest_grade, ect_norm, normalize_grade
 from .machines import select_machine
 from .optimizer import Material, CompositionCandidate, rank_candidates
 
@@ -23,13 +22,9 @@ def prepare_order_item(item: dict) -> dict:
         )
         blank = geo["blank"]
         return {
-            **item,
-            "product_type": "FEFCO 0201",
-            "quantity": quantity,
-            "blank_length_mm": blank["length_mm"],
-            "blank_width_mm": blank["width_mm"],
-            "blank_area_m2": blank["area_m2"],
-            "geometry": geo,
+            **item, "product_type": "FEFCO 0201", "quantity": quantity,
+            "blank_length_mm": blank["length_mm"], "blank_width_mm": blank["width_mm"],
+            "blank_area_m2": blank["area_m2"], "geometry": geo,
         }
     if product_type in {"sheet", "лист", "blank"}:
         a = float(item.get("blank_length_mm") or item.get("length_mm") or 0)
@@ -37,15 +32,43 @@ def prepare_order_item(item: dict) -> dict:
         if a <= 0 or b <= 0:
             raise ValueError("Для листовой заготовки нужны длина и ширина")
         return {
-            **item,
-            "product_type": "SHEET",
-            "quantity": quantity,
-            "blank_length_mm": a,
-            "blank_width_mm": b,
-            "blank_area_m2": round(a * b / 1_000_000, 6),
-            "geometry": None,
+            **item, "product_type": "SHEET", "quantity": quantity,
+            "blank_length_mm": a, "blank_width_mm": b,
+            "blank_area_m2": round(a * b / 1_000_000, 6), "geometry": None,
         }
     raise ValueError(f"Тип изделия {product_type} не поддерживается в v1.0")
+
+
+def estimate_bct_mckee(item: dict) -> dict | None:
+    """Engineering BCT estimate for FEFCO 0201 using exponent McKee."""
+    if item.get("product_type") != "FEFCO 0201" or not item.get("geometry"):
+        return None
+    grade = normalize_grade(item.get("required_board_grade")) or str(item.get("required_board_grade") or "")
+    ect = ect_norm(grade)
+    if ect is None:
+        return {"method": "McKee exponent", "ect_min_kn_m": None, "bct_estimated_kn": None,
+                "warning": "Для указанной марки нет нормативного ECT."}
+    length_m = float(item.get("length_mm") or 0) / 1000
+    width_m = float(item.get("width_mm") or 0) / 1000
+    height_m = float(item.get("height_mm") or 0) / 1000
+    caliper_m = float(item["geometry"]["profile_rule"]["caliper_mm"]) / 1000
+    perimeter_m = 2 * (length_m + width_m)
+    if perimeter_m <= 0 or caliper_m <= 0:
+        return None
+    bct_kn = 5.87 * float(ect) * (caliper_m ** 0.508) * (perimeter_m ** 0.492)
+    warnings = []
+    if height_m > 0 and height_m < perimeter_m / 7:
+        warnings.append("Низкая коробка: H < P/7, оценку McKee применять с осторожностью.")
+    return {
+        "method": "McKee exponent / ASTM D5639",
+        "required_grade": grade,
+        "ect_min_kn_m": round(float(ect), 4),
+        "caliper_mm": round(caliper_m * 1000, 4),
+        "inside_perimeter_mm": round(perimeter_m * 1000, 3),
+        "bct_estimated_kn": round(bct_kn, 3),
+        "bct_estimated_kgf": round(bct_kn * 101.971621, 1),
+        "warning": " ".join(warnings) if warnings else None,
+    }
 
 
 def full_calculation(
@@ -58,12 +81,13 @@ def full_calculation(
     other_waste_pct: float = 0,
 ) -> dict:
     prepared = [prepare_order_item(x) for x in order_items]
+    for item in prepared:
+        item["strength"] = estimate_bct_mckee(item)
     corrugator_config = corrugator_config or CorrugatorConfig()
     machine_hourly_costs = machine_hourly_costs or {}
     materials = materials or []
     composition_candidates = composition_candidates or []
 
-    # Corrugator: common profile is mandatory inside one launch.
     by_profile: dict[str, list[dict]] = defaultdict(list)
     for x in prepared:
         by_profile[str(x.get("profile") or "").upper()].append(x)
@@ -75,13 +99,15 @@ def full_calculation(
         citems = [CorrugatorItem(
             code=str(x.get("code") or x.get("external_ref") or f"ITEM-{idx+1}"),
             blank_length_mm=float(x["blank_length_mm"]), blank_width_mm=float(x["blank_width_mm"]),
-            quantity=int(x["quantity"]), profile=profile, required_board_grade=str(x.get("required_board_grade") or ""),
+            quantity=int(x["quantity"]), profile=profile,
+            required_board_grade=str(x.get("required_board_grade") or ""),
             blank_area_m2=float(x["blank_area_m2"]),
         ) for idx, x in enumerate(rows)]
         plan = optimize_corrugator_group(citems, roll_widths_mm, corrugator_config)
         for launch in plan["launches"]:
             item_codes = {d["code"] for d in launch["items"]}
-            grade = strongest_grade([x.get("required_board_grade", "") for x in rows if str(x.get("code") or x.get("external_ref") or "") in item_codes])
+            grade = strongest_grade([x.get("required_board_grade", "") for x in rows
+                                     if str(x.get("code") or x.get("external_ref") or "") in item_codes])
             if grade is None:
                 grade = strongest_grade([x.get("required_board_grade", "") for x in rows])
             gross_area = launch["roll_width_mm"] / 1000 * launch["run_length_m"]
@@ -112,8 +138,6 @@ def full_calculation(
             colors=int(x.get("colors") or 1), die_cut=bool(x.get("die_cut") or False), quantity=int(x["quantity"]),
             hourly_cost_rub=None,
         )
-        # Re-evaluate known recommended/alternatives with machine-specific costs is not necessary for ranking if costs absent;
-        # attach cost to each machine when the user supplied a rate.
         if machine_hourly_costs:
             from .machines import load_equipment_reference, evaluate_machine
             evals = []
@@ -125,8 +149,10 @@ def full_calculation(
                 )
                 evals.append(ev)
             feasible = [e for e in evals if e["feasible"]]
-            feasible.sort(key=lambda e: (e["conversion_cost_rub"] is None, e["conversion_cost_rub"] or 10**18, e["total_minutes"] or 10**18))
-            selection = {"recommended": feasible[0] if feasible else None, "alternatives": feasible[1:], "all_machines": evals, "excluded": [e for e in evals if not e["feasible"]]}
+            feasible.sort(key=lambda e: (e["conversion_cost_rub"] is None, e["conversion_cost_rub"] or 10**18,
+                                         e["total_minutes"] or 10**18))
+            selection = {"recommended": feasible[0] if feasible else None, "alternatives": feasible[1:],
+                         "all_machines": evals, "excluded": [e for e in evals if not e["feasible"]]}
         rec = selection.get("recommended")
         if rec and rec.get("conversion_cost_rub") is not None:
             conversion_total += float(rec["conversion_cost_rub"])
@@ -142,7 +168,7 @@ def full_calculation(
         known_components.append(conversion_total)
     total_known = sum(known_components) if known_components else None
     return {
-        "version": "0.7",
+        "version": "0.7.1",
         "items": prepared,
         "corrugator": corrugator_groups,
         "processing": processing,
@@ -162,5 +188,6 @@ def full_calculation(
             "corrugator": "optimizer v0.6 / two crosscut levels",
             "equipment": "equipment reference v0.6",
             "grade_norms": "board grade norms v0.6",
+            "bct": "McKee exponent / ASTM D5639",
         },
     }

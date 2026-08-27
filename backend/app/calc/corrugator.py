@@ -32,7 +32,6 @@ def load_corrugator_reference() -> dict:
 
 
 def _candidate_stream_allocations(items: list[CorrugatorItem], max_streams: int):
-    # At least one stream per included item, with total stream count bounded by equipment.
     for counts in product(range(1, max_streams + 1), repeat=len(items)):
         if sum(counts) <= max_streams:
             yield counts
@@ -97,26 +96,45 @@ def evaluate_run(items: list[CorrugatorItem], stream_counts: tuple[int, ...], ro
     }
 
 
-def best_run(items: list[CorrugatorItem], roll_widths_mm: list[float], config: CorrugatorConfig | None = None) -> dict | None:
+def ranked_runs(
+    items: list[CorrugatorItem],
+    roll_widths_mm: list[float],
+    config: CorrugatorConfig | None = None,
+    limit: int = 5,
+) -> list[dict]:
+    """Return the best distinct layout variants for the same set of items."""
     config = config or CorrugatorConfig()
-    best = None
+    variants: list[dict] = []
+    seen: set[tuple] = set()
     for roll in sorted(set(float(x) for x in roll_widths_mm if x and float(x) > 0)):
         for counts in _candidate_stream_allocations(items, config.max_streams):
             run = evaluate_run(items, counts, roll, config)
             if run is None:
                 continue
-            if best is None or run["objective_score"] < best["objective_score"]:
-                best = run
-    return best
+            key = (
+                round(run["roll_width_mm"], 6),
+                tuple((x["code"], int(x["streams"])) for x in run["items"]),
+                tuple(run["crosscut_lengths_mm"]),
+            )
+            if key in seen:
+                continue
+            seen.add(key)
+            variants.append(run)
+    variants.sort(key=lambda r: (r["objective_score"], r["total_waste_m2"], r["run_length_m"], r["roll_width_mm"]))
+    out = variants[:max(1, int(limit))]
+    for idx, row in enumerate(out, start=1):
+        row["rank"] = idx
+        row["is_recommended"] = idx == 1
+    return out
+
+
+def best_run(items: list[CorrugatorItem], roll_widths_mm: list[float], config: CorrugatorConfig | None = None) -> dict | None:
+    ranked = ranked_runs(items, roll_widths_mm, config, limit=1)
+    return ranked[0] if ranked else None
 
 
 def optimize_corrugator_group(items: list[CorrugatorItem], roll_widths_mm: list[float], config: CorrugatorConfig | None = None) -> dict:
-    """Greedy group planner.
-
-    Each launch uses one profile/common board and no more than two cross-cut lengths.
-    The search considers subsets that fit the stream limit, then chooses the launch with
-    the highest coverage and lowest material waste. Remaining items are planned next.
-    """
+    """Greedy group planner with ranked layout alternatives."""
     config = config or CorrugatorConfig()
     if not items:
         return {"launches": [], "unplanned": [], "summary": {"orders": 0}}
@@ -140,7 +158,6 @@ def optimize_corrugator_group(items: list[CorrugatorItem], roll_widths_mm: list[
                 if run is None:
                     continue
                 coverage = sum(x.quantity for x in subset)
-                # Prefer more distinct orders first, then quantity, then lower waste.
                 rank = (-len(subset), -coverage, run["objective_score"])
                 if best_choice is None or rank < best_choice[0]:
                     best_choice = (rank, subset_idx, run)
@@ -150,8 +167,12 @@ def optimize_corrugator_group(items: list[CorrugatorItem], roll_widths_mm: list[
             continue
         _, subset_idx, run = best_choice
         selected = [remaining[i] for i in subset_idx]
+        alternatives = ranked_runs(selected, roll_widths_mm, config, limit=5)
+        if alternatives:
+            run = alternatives[0]
         run["profile"] = selected[0].profile
         run["required_board_grades"] = sorted({x.required_board_grade for x in selected})
+        run["layout_alternatives"] = alternatives
         launches.append(run)
         selected_set = set(subset_idx)
         remaining = [x for i, x in enumerate(remaining) if i not in selected_set]
