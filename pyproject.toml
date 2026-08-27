@@ -1,0 +1,13 @@
+[project]
+name = "ke-box-calc"
+version = "0.8.0.dev0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.116.1",
+  "uvicorn[standard]==0.35.0",
+  "psycopg[binary]==3.2.9",
+  "python-multipart==0.0.20",
+]
+
+[tool.vercel]
+entrypoint = "backend.app.main:app"
