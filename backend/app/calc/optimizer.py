@@ -19,6 +19,13 @@ class Material:
     procurement_status: str = "active"
     variant_1c: str | None = None
     supplier: str | None = None
+    manufacturer: str | None = None
+    material_type: str | None = None
+    roll_width_mm: float | None = None
+    price_date: str | None = None
+    stock_date: str | None = None
+    technological_code: str | None = None
+    color: str | None = None
 
     @property
     def key(self) -> str:
@@ -127,7 +134,8 @@ def rank_candidates(
     matching = [
         c for c in candidates
         if (normalize_grade(c.board_grade) or c.board_grade.upper().strip()) == req_grade
-        and c.profile.upper().strip().replace("С","C").replace("В","B").replace("Е","E") == profile.upper().strip().replace("С","C").replace("В","B").replace("Е","E")
+        and c.profile.upper().strip().replace("С", "C").replace("В", "B").replace("Е", "E")
+        == profile.upper().strip().replace("С", "C").replace("В", "B").replace("Е", "E")
     ]
 
     evaluated = [
@@ -145,7 +153,7 @@ def rank_candidates(
 
     for idx, row in enumerate(eligible, start=1):
         row["rank"] = idx
-        row["is_recommended"] = (idx == 1)
+        row["is_recommended"] = idx == 1
 
     ineligible = [r for r in evaluated if not r["eligible"]]
     return {
@@ -158,5 +166,8 @@ def rank_candidates(
         "recommended": eligible[0] if eligible else None,
         "ranking": eligible,
         "excluded": ineligible,
-        "decision_rule": "минимальная стоимость среди утверждённых и доступных композиций; затем резерв прочности и число успешных лабораторных испытаний",
+        "decision_rule": (
+            "минимальная стоимость среди утверждённых и доступных композиций; "
+            "затем резерв прочности и число успешных лабораторных испытаний"
+        ),
     }
