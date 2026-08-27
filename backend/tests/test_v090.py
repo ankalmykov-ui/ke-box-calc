@@ -19,6 +19,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 MIGRATION = BACKEND / "migrations" / "0001_v0_9_foundation.sql"
 COMPOSITION_MIGRATION = BACKEND / "migrations" / "0002_v0_9_compositions.sql"
 SERVICE = BACKEND / "app" / "warehouse" / "service.py"
+COMPOSITION_SERVICE = BACKEND / "app" / "compositions" / "service.py"
 
 
 def test_v09_version_and_database_are_lazy(monkeypatch):
@@ -144,6 +145,12 @@ def test_composition_api_is_versioned_and_independent_from_warehouse():
     assert "/api/v1/compositions/{definition_id}/versions" in paths
     assert "/api/v1/composition-versions/{version_id}/bct-results" in paths
     assert "/api/v1/composition-versions/{version_id}/cost-snapshots" in paths
+
+
+def test_optional_composition_filters_have_explicit_postgres_types():
+    service = COMPOSITION_SERVICE.read_text(encoding="utf-8")
+    assert service.count("%s::text IS NULL") == 2
+    assert "upper(%s::text)" in service
 
 
 def test_composition_layers_must_be_contiguous_and_three_or_five():

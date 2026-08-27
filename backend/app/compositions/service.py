@@ -330,8 +330,8 @@ def list_compositions(
             ) cost ON TRUE
             WHERE cd.organization_id = %s
               AND cd.is_active
-              AND (%s IS NULL OR cv.board_grade_code = upper(%s))
-              AND (%s IS NULL OR cv.profile_code = upper(%s))
+              AND (%s::text IS NULL OR cv.board_grade_code = upper(%s::text))
+              AND (%s::text IS NULL OR cv.profile_code = upper(%s::text))
             ORDER BY cv.board_grade_code, cv.profile_code, cd.code
             """,
             (
