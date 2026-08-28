@@ -1,0 +1,19 @@
+{
+  "name": "KE | BOX CALC v2.0",
+  "short_name": "BOX CALC",
+  "description": "Технологический и экономический расчёт гофроупаковки",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1d1f21",
+  "theme_color": "#24272a",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

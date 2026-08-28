@@ -1,0 +1,60 @@
+name: v2 CI
+
+on:
+  push:
+    branches: [v2-dev]
+  pull_request:
+    branches: [v2-dev]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.3"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev --locked
+      - run: uv run ruff check .
+      - run: uv run pytest
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: boxcalc
+          POSTGRES_PASSWORD: boxcalc
+          POSTGRES_DB: boxcalc_v2_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U boxcalc -d boxcalc_v2_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://boxcalc:boxcalc@localhost:5432/boxcalc_v2_test
+      DATABASE_REQUIRED: "true"
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.8.3"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: uv sync --dev --locked
+      - run: uv run python -m ke_box_calc.db.migrator up
+      - run: uv run python -m ke_box_calc.db.migrator status
+      - run: uv run python -m ke_box_calc.db.migrator down
+      - run: uv run python -m ke_box_calc.db.migrator up
+

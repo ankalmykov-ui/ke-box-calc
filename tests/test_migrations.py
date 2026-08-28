@@ -1,0 +1,21 @@
+from ke_box_calc.db.migrator import load_migrations
+
+
+def test_initial_migration_is_reversible_and_scoped() -> None:
+    migrations = load_migrations()
+    assert [migration.version for migration in migrations] == ["0001_identity_scope"]
+    migration = migrations[0]
+    for table in (
+        "organizations",
+        "sites",
+        "warehouses",
+        "users",
+        "roles",
+        "user_role_scopes",
+        "audit_log",
+    ):
+        assert f"CREATE TABLE {table}" in migration.up_sql
+        assert f"DROP TABLE IF EXISTS {table}" in migration.down_sql
+    assert "INSERT INTO roles" in migration.up_sql
+    assert migration.checksum
+
