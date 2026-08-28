@@ -9,6 +9,7 @@ from ..db import DatabaseNotConfigured
 from . import service
 from .models import (
     MaterialCreate,
+    MaterialPriceInput,
     OrganizationCreate,
     ReceiptCreate,
     ReversalCreate,
@@ -39,6 +40,11 @@ def create_organization(req: OrganizationCreate):
     return _call(service.create_organization, req)
 
 
+@router.get("/organizations")
+def list_organizations(code: str | None = None):
+    return _call(service.list_organizations, code=code)
+
+
 @router.post("/sites", status_code=201)
 def create_site(req: SiteCreate):
     return _call(service.create_site, req)
@@ -57,6 +63,11 @@ def create_material(req: MaterialCreate):
 @router.get("/materials")
 def list_materials(organization_id: UUID, include_inactive: bool = False):
     return _call(service.list_materials, organization_id, include_inactive=include_inactive)
+
+
+@router.post("/materials/{material_id}/prices", status_code=201)
+def record_material_price(material_id: UUID, req: MaterialPriceInput):
+    return _call(service.record_material_price, material_id, req)
 
 
 @router.post("/stock/receipts", status_code=201)

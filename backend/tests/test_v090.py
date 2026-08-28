@@ -12,12 +12,17 @@ from app.compositions.models import (
 from app.db import REQUIRED_SCHEMA_VERSION, schema_status
 from app.db_migrations import migration_files, should_apply_migrations_on_startup
 from app.main import APP_VERSION, app, health
-from app.warehouse.models import ReceiptLineInput, StockQuantityInput
+from app.warehouse.models import (
+    MaterialPriceInput,
+    ReceiptLineInput,
+    StockQuantityInput,
+)
 
 
 BACKEND = Path(__file__).resolve().parents[1]
 MIGRATION = BACKEND / "migrations" / "0001_v0_9_foundation.sql"
 COMPOSITION_MIGRATION = BACKEND / "migrations" / "0002_v0_9_compositions.sql"
+PRICE_MIGRATION = BACKEND / "migrations" / "0003_v0_9_material_prices.sql"
 SERVICE = BACKEND / "app" / "warehouse" / "service.py"
 COMPOSITION_SERVICE = BACKEND / "app" / "compositions" / "service.py"
 
@@ -49,6 +54,7 @@ def test_first_migration_is_discoverable_and_canonical():
     files = migration_files()
     assert [path.stem for path in files] == [
         "0001_v0_9_foundation",
+        "0002_v0_9_compositions",
         REQUIRED_SCHEMA_VERSION,
     ]
     sql = MIGRATION.read_text(encoding="utf-8")
@@ -93,6 +99,26 @@ def test_writeoff_contract_is_atomic_and_separate_from_pdf():
     assert "/api/v1/stock/receipts" in paths
     assert paths["/api/import/1c/materials/preview"]["post"]["deprecated"] is True
     assert "/api/v1/inventory/imports/1c/preview" in paths
+
+
+def test_material_prices_are_versioned_and_exposed_by_api():
+    sql = PRICE_MIGRATION.read_text(encoding="utf-8")
+    assert "idx_material_price_history_current" in sql
+    assert "material_price_history_is_immutable" in sql
+
+    paths = app.openapi()["paths"]
+    assert "/api/v1/organizations" in paths
+    assert "/api/v1/materials/{material_id}/prices" in paths
+
+
+def test_material_price_period_must_be_ordered():
+    with pytest.raises(ValidationError):
+        MaterialPriceInput(
+            price_per_unit=Decimal("47000"),
+            valid_from="2026-08-28T00:00:00+03:00",
+            valid_to="2026-08-27T00:00:00+03:00",
+            recorded_by="test",
+        )
 
 
 def test_non_kg_quantity_requires_explicit_conversion():

@@ -26,10 +26,12 @@
 
 - `GET /api/v1/meta` — версия приложения, API и состояние схемы.
 - `POST /api/v1/organizations` — организация.
+- `GET /api/v1/organizations` — поиск организации по коду.
 - `POST /api/v1/sites` — производственная площадка.
 - `POST /api/v1/warehouses` — склад.
 - `POST /api/v1/materials` — карточка сырья.
 - `GET /api/v1/materials` — справочник сырья организации.
+- `POST /api/v1/materials/{id}/prices` — новая неизменяемая запись истории цены.
 - `POST /api/v1/stock/receipts` — поступление.
 - `GET /api/v1/stock/warehouses/{warehouse_id}/balances` — производный остаток.
 - `POST /api/v1/stock/writeoffs/confirm` — отдельное подтверждение списания.

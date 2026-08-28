@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 from ..db import get_conn
 from .models import (
     MaterialCreate,
+    MaterialPriceInput,
     OrganizationCreate,
     ReceiptCreate,
     ReversalCreate,
@@ -58,6 +59,56 @@ def _warehouse_context(conn, warehouse_id: UUID) -> dict:
     )
 
 
+def _insert_material_price(
+    conn,
+    *,
+    organization_id: UUID,
+    material_id: UUID,
+    req: MaterialPriceInput,
+) -> dict:
+    price = conn.execute(
+        """
+        INSERT INTO material_price_history(
+            material_id, unit_code, currency_code, price_per_unit,
+            valid_from, valid_to, source_name
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+        RETURNING *
+        """,
+        (
+            material_id,
+            req.unit_code.strip().lower(),
+            req.currency_code.strip().upper(),
+            req.price_per_unit,
+            req.valid_from,
+            req.valid_to,
+            req.source_name,
+        ),
+    ).fetchone()
+    conn.execute(
+        """
+        INSERT INTO audit_log(
+            organization_id, actor, action, entity_type, entity_id, after_data
+        ) VALUES (%s, %s, 'material.price.recorded', 'material_price', %s, %s)
+        """,
+        (
+            organization_id,
+            req.recorded_by,
+            price["id"],
+            Jsonb(
+                {
+                    "material_id": str(material_id),
+                    "unit_code": req.unit_code.strip().lower(),
+                    "currency_code": req.currency_code.strip().upper(),
+                    "price_per_unit": str(req.price_per_unit),
+                    "valid_from": req.valid_from.isoformat(),
+                    "source_name": req.source_name,
+                }
+            ),
+        ),
+    )
+    return price
+
+
 def _document_payload(conn, document_id: UUID, *, replay: bool = False) -> dict:
     document = _one(
         conn,
@@ -99,6 +150,19 @@ def create_organization(req: OrganizationCreate) -> dict:
             if getattr(exc, "sqlstate", None) == "23505":
                 raise WarehouseConflict("Организация с таким кодом уже существует") from exc
             raise
+
+
+def list_organizations(*, code: str | None = None) -> list[dict]:
+    with get_conn() as conn:
+        return conn.execute(
+            """
+            SELECT id, code, name, is_active, created_at
+            FROM organizations
+            WHERE (%s::text IS NULL OR code = %s::text)
+            ORDER BY name, code
+            """,
+            (code, code),
+        ).fetchall()
 
 
 def create_site(req: SiteCreate) -> dict:
@@ -206,8 +270,19 @@ def create_material(req: MaterialCreate) -> dict:
                     ),
                 )
 
+            prices = [
+                _insert_material_price(
+                    conn,
+                    organization_id=req.organization_id,
+                    material_id=material["id"],
+                    req=price,
+                )
+                for price in req.prices
+            ]
+
             material["external_identifiers"] = [x.model_dump() for x in req.external_identifiers]
             material["widths"] = [x.model_dump() for x in req.widths]
+            material["prices"] = prices
             return material
         except Exception as exc:
             if getattr(exc, "sqlstate", None) == "23505":
@@ -222,32 +297,66 @@ def list_materials(organization_id: UUID, *, include_inactive: bool = False) -> 
         rows = conn.execute(
             """
             SELECT m.*,
-                   COALESCE(
-                       jsonb_agg(DISTINCT jsonb_build_object(
+                   COALESCE((
+                       SELECT jsonb_agg(jsonb_build_object(
                            'source_system', mei.source_system,
                            'external_code', mei.external_code,
                            'external_variant', mei.external_variant
-                       )) FILTER (WHERE mei.id IS NOT NULL),
-                       '[]'::jsonb
-                   ) AS external_identifiers,
-                   COALESCE(
-                       jsonb_agg(DISTINCT jsonb_build_object(
+                       ) ORDER BY mei.created_at)
+                       FROM material_external_identifiers mei
+                       WHERE mei.material_id = m.id
+                   ), '[]'::jsonb) AS external_identifiers,
+                   COALESCE((
+                       SELECT jsonb_agg(jsonb_build_object(
                            'width_mm', mw.width_mm,
                            'status', mw.status,
                            'valid_from', mw.valid_from
-                       )) FILTER (WHERE mw.id IS NOT NULL),
-                       '[]'::jsonb
-                   ) AS widths
+                       ) ORDER BY mw.width_mm, mw.valid_from DESC)
+                       FROM material_widths mw
+                       WHERE mw.material_id = m.id
+                   ), '[]'::jsonb) AS widths,
+                   (
+                       SELECT jsonb_build_object(
+                           'id', mph.id,
+                           'unit_code', mph.unit_code,
+                           'currency_code', mph.currency_code,
+                           'price_per_unit', mph.price_per_unit,
+                           'valid_from', mph.valid_from,
+                           'source_name', mph.source_name
+                       )
+                       FROM material_price_history mph
+                       WHERE mph.material_id = m.id
+                         AND mph.valid_from <= now()
+                         AND (mph.valid_to IS NULL OR mph.valid_to >= now())
+                       ORDER BY mph.valid_from DESC, mph.created_at DESC
+                       LIMIT 1
+                   ) AS latest_price
             FROM materials m
-            LEFT JOIN material_external_identifiers mei ON mei.material_id = m.id
-            LEFT JOIN material_widths mw ON mw.material_id = m.id
             WHERE m.organization_id = %s AND (%s OR m.is_active)
-            GROUP BY m.id
             ORDER BY m.name, m.gsm, m.code
             """,
             (organization_id, include_inactive),
         ).fetchall()
         return rows
+
+
+def record_material_price(material_id: UUID, req: MaterialPriceInput) -> dict:
+    with get_conn() as conn, conn.transaction():
+        material = _one(
+            conn,
+            """
+            SELECT id, organization_id
+            FROM materials
+            WHERE id = %s AND is_active
+            """,
+            (material_id,),
+        )
+        return _insert_material_price(
+            conn,
+            organization_id=material["organization_id"],
+            material_id=material_id,
+            req=req,
+        )
 
 
 def create_receipt(req: ReceiptCreate) -> dict:

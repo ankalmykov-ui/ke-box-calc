@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -38,6 +38,22 @@ class MaterialWidthInput(BaseModel):
     source_name: str | None = None
 
 
+class MaterialPriceInput(BaseModel):
+    unit_code: str = Field(default="t", min_length=1, max_length=24)
+    currency_code: str = Field(default="RUB", min_length=3, max_length=3)
+    price_per_unit: Decimal = Field(ge=0)
+    valid_from: datetime
+    valid_to: datetime | None = None
+    source_name: str | None = Field(default=None, max_length=500)
+    recorded_by: str = Field(min_length=1, max_length=240)
+
+    @model_validator(mode="after")
+    def validate_price_period(self):
+        if self.valid_to is not None and self.valid_to < self.valid_from:
+            raise ValueError("valid_to не может быть раньше valid_from")
+        return self
+
+
 class MaterialCreate(BaseModel):
     organization_id: UUID
     code: str = Field(min_length=1, max_length=120)
@@ -63,6 +79,7 @@ class MaterialCreate(BaseModel):
     valid_from: date = Field(default_factory=date.today)
     external_identifiers: list[ExternalIdentifierInput] = Field(default_factory=list)
     widths: list[MaterialWidthInput] = Field(default_factory=list)
+    prices: list[MaterialPriceInput] = Field(default_factory=list)
 
 
 class StockQuantityInput(BaseModel):
