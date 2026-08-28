@@ -19,7 +19,7 @@ def configure_app(app: FastAPI) -> None:
     configure_logging(settings.app_log_level)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=list(settings.allowed_origins),
+        allow_origins=settings.allowed_origin_list,
         allow_credentials=False,
         allow_methods=["GET"],
         allow_headers=["Content-Type"],
