@@ -41,7 +41,7 @@
 - `GET /api/v1/compositions` — актуальные версии с BCT и стоимостью/м².
 - `POST /api/v1/composition-versions/{id}/bct-results` — расчётный или фактический BCT.
 - `POST /api/v1/composition-versions/{id}/cost-snapshots` — снимок стоимости/м².
-- `POST /api/v1/inventory/imports/1c/preview` — безопасный preview внешнего файла 1С.
+- `POST /api/v1/inventory/imports/1c/preview` — безопасный preview учётных остатков из DOCX 1С без складских движений.
 
 Формирование PDF не вызывает ни один складской endpoint и не изменяет остатки.
 

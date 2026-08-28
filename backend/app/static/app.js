@@ -5,6 +5,8 @@ const state = {
   previewOrders: [],
   previewMaterials: [],
   materials: [],
+  materialDirectory: [],
+  inventoryPreview: null,
   labPreview: null,
   candidates: [],
   equipment: null,
@@ -32,7 +34,7 @@ function toast(msg,error=false){
 }
 function persist(){
   sessionStorage.setItem("boxcalc.mode",state.mode);
-  $("sessionHint").textContent=`Заказ: ${state.order.length} поз. · 1С: ${state.materials.length} · комп.: ${state.candidates.length}`;
+  $("sessionHint").textContent=`Заказ: ${state.order.length} поз. · сырьё: ${state.materialDirectory.length} · комп.: ${state.candidates.length}`;
 }
 function showView(name){
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===`view-${name}`));
@@ -199,30 +201,47 @@ function materialPayload(r){
     technological_code:r.technological_code||null,color:r.color||null
   };
 }
-async function preview1C(){
+async function loadMaterialDirectory(){
   try{
-    const f=$("onecFile").files[0];if(!f) throw new Error("Выберите файл 1С");
-    const fd=new FormData();fd.append("file",f);
-    const d=await api("/api/import/1c/materials/preview",{method:"POST",body:fd});
-    state.previewMaterials=d.rows||[];
-    $("apply1cBtn").disabled=!(d.stats?.rows_valid>0);
-    $("onecState").innerHTML=`Корректных строк: <b class="good">${d.stats.rows_valid}</b> · замечаний: <b>${d.stats.issues}</b>`;
-    renderMaterials(state.previewMaterials.slice(0,30),true);
+    const organizations=await api("/api/v1/organizations?code=PK-RUSPAK");
+    if(!organizations.length) throw new Error("Организация PK-RUSPAK не найдена");
+    const rows=await api(`/api/v1/materials?organization_id=${encodeURIComponent(organizations[0].id)}`);
+    state.materialDirectory=rows;
+    const priced=rows.filter(r=>r.latest_price).length;
+    const widths=rows.reduce((sum,r)=>sum+(r.widths||[]).length,0);
+    $("materialsCount").textContent=`${rows.length} карточек`;
+    $("onecState").innerHTML=`Карточек: <b class="good">${rows.length}</b> · с ценой: <b>${priced}</b> · подтверждённых ширин: <b>${widths}</b><br><span class="muted">1С не используется как оперативная база.</span>`;
+    renderMaterialDirectory(rows);
+    persist();
   }catch(e){toast(e.message,true)}
 }
-function apply1C(){
-  state.materials=state.previewMaterials
-    .filter(r=>r.code_1c&&r.name&&+r.gsm>0&&+r.price_rub_t>0&&r.procurement_status!=="requires_classification")
-    .map(materialPayload);
-  $("materialsCount").textContent=`${state.materials.length} активно`;
-  $("onecState").innerHTML=`<span class="good">В расчёте активно ${state.materials.length} материалов.</span>`;
-  renderMaterials(state.materials,false);renderCompositionLayers();resetResult();persist();
-  toast("Данные 1С применены к текущей сессии");
+function renderMaterialDirectory(rows){
+  const el=$("materialsTable");
+  if(!rows?.length){el.innerHTML="";return}
+  el.innerHTML=rows.slice(0,40).map(r=>`<div class="mini-row"><div><b>${esc(r.code)} · ${esc(r.name)}</b><small>${esc(r.material_type)} · ${num(r.gsm,0)} г/м² · ${esc(r.manufacturer||"производитель не указан")}</small></div><div>${r.latest_price?num(r.latest_price.price_per_unit,0)+" ₽/т":"цена —"}<br><small>${(r.widths||[]).length?`${r.widths.length} шир.`:"ширины —"}</small></div></div>`).join("")+(rows.length>40?`<div class="muted">Показаны первые 40 из ${rows.length}</div>`:"");
 }
 function renderMaterials(rows,preview=false){
   const el=$("materialsTable");
   if(!rows?.length){el.innerHTML="";return}
   el.innerHTML=rows.slice(0,40).map(r=>`<div class="mini-row"><div><b>${esc(r.code_1c)} · ${esc(r.name)}</b><small>${esc(r.material_type||"тип не указан")} · ${r.gsm} г/м² · рулон ${r.roll_width_mm??"—"} мм</small></div><div>${num(r.price_rub_t,0)} ₽/т<br><small>${esc(r.procurement_status||"")}</small></div></div>`).join("")+(rows.length>40?`<div class="muted">Показаны первые 40 из ${rows.length}</div>`:"");
+}
+async function previewInventory(){
+  try{
+    const f=$("inventoryFile").files[0];if(!f) throw new Error("Выберите DOCX с остатками");
+    const fd=new FormData();fd.append("file",f);
+    const d=await api("/api/v1/inventory/imports/1c/preview",{method:"POST",body:fd});
+    state.inventoryPreview=d;
+    const s=d.stats||{};
+    $("inventoryCount").textContent=`${s.rows_total||0} строк`;
+    $("inventoryState").className=`inline-result ${s.rows_error?"warn":"good"}`;
+    $("inventoryState").innerHTML=`Склады: <b>${esc((s.warehouses||[]).join(" · "))}</b><br>Учётный итог: <b>${num(s.calculated_total_kg,0)} кг</b> · готово: <b class="good">${s.rows_ready||0}</b> · с замечаниями: <b class="warn">${s.rows_warning||0}</b> · ошибок: <b class="bad">${s.rows_error||0}</b><br><span class="muted">${s.totals_match?"Итог строк совпадает с итогом файла.":"Итог строк не совпадает с итогом файла — требуется проверка."} Данные в склад не записаны.</span>`;
+    renderInventory(d.rows||[]);
+  }catch(e){toast(e.message,true)}
+}
+function renderInventory(rows){
+  const el=$("inventoryTable"), selected=rows.filter(r=>r.status!=="ready").slice(0,40);
+  if(!selected.length){el.innerHTML=`<div class="inline-result good">Все строки прошли структурную проверку.</div>`;return}
+  el.innerHTML=selected.map(r=>`<div class="mini-row"><div><b>${esc(r.item_name)}</b><small>${esc(r.warehouse_name)} · ${r.gsm??"—"} г/м² · ${r.roll_width_mm??"—"} мм</small><small class="${r.status==="error"?"bad":"warn"}">${esc((r.issues||[]).join("; "))}</small></div><div>${r.accounting_quantity_kg==null?"—":num(r.accounting_quantity_kg,0)+" кг"}<br><small>${r.accounting_price_rub_kg==null?"цена —":num(r.accounting_price_rub_kg,2)+" ₽/кг"}</small></div></div>`).join("")+(rows.filter(r=>r.status!=="ready").length>40?`<div class="muted">Показаны первые 40 проблемных строк.</div>`:"");
 }
 async function previewLab(){
   try{
@@ -303,7 +322,7 @@ function renderResult(){
   $("mArea").textContent=`${num(d.cost.net_order_area_m2,1)} м²`;
   $("mMaterialCost").textContent=money(d.cost.material_cost_rub);
   $("mTotalCost").textContent=money(d.cost.known_total_cost_rub);
-  $("rollSource").textContent=d.roll_width_source==="1c_materials"?"ширины: из 1С":"ширины: вручную";
+  $("rollSource").textContent=d.roll_width_source==="1c_materials"?"ширины: из справочника":"ширины: вручную";
   $("resultItems").innerHTML=d.items.map(x=>{
     const size=x.product_type==="SHEET"?`${x.blank_length_mm}×${x.blank_width_mm}`:`${x.length_mm}×${x.width_mm}×${x.height_mm}`;
     const flute=x.flute_direction?.label||"—";
@@ -379,6 +398,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   $("engineerModeBtn").addEventListener("click",()=>setMode("engineer"));
   ["lengthMm","widthMm","heightMm","blankLengthMm","blankWidthMm","quantity","colors","jointMm","caliperMm","gaWidth"].forEach(id=>$(id)?.addEventListener("input",scheduleCurrentItemValidation));
   ["profile","boardGrade","dieCut"].forEach(id=>$(id)?.addEventListener("change",scheduleCurrentItemValidation));
-  setMode(state.mode);syncProductType();renderOrder();renderCompositions();renderResultEmpty();loadReferences();persist();
+  setMode(state.mode);syncProductType();renderOrder();renderCompositions();renderResultEmpty();loadReferences();loadMaterialDirectory();persist();
   if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(()=>{});
 });

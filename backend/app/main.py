@@ -17,6 +17,7 @@ from .compositions.router import router as compositions_router
 from .db import database_url, schema_status
 from .db_migrations import apply_migrations, should_apply_migrations_on_startup
 from .importers.lab import parse_lab_import
+from .importers.inventory_1c import parse_inventory_import
 from .importers.materials_1c import ImportFormatError, parse_material_import
 from .importers.orders import parse_order_import, validate_order_rows
 from .warehouse.router import router as warehouse_router
@@ -260,10 +261,17 @@ def validate_orders(req: ValidateRowsRequest):
 
 
 @app.post("/api/import/1c/materials/preview", deprecated=True)
-@app.post("/api/v1/inventory/imports/1c/preview")
-async def preview_1c(file: UploadFile = File(...)):
+async def preview_1c_materials(file: UploadFile = File(...)):
     try:
         return parse_material_import(await file.read(), file.filename or "materials.xlsx")
+    except ImportFormatError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/v1/inventory/imports/1c/preview")
+async def preview_1c_inventory(file: UploadFile = File(...)):
+    try:
+        return parse_inventory_import(await file.read(), file.filename or "inventory.docx")
     except ImportFormatError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

@@ -1,5 +1,7 @@
 from decimal import Decimal
+from io import BytesIO
 from pathlib import Path
+import zipfile
 
 import pytest
 from pydantic import ValidationError
@@ -12,6 +14,7 @@ from app.compositions.models import (
 from app.db import REQUIRED_SCHEMA_VERSION, schema_status
 from app.db_migrations import migration_files, should_apply_migrations_on_startup
 from app.main import APP_VERSION, app, health
+from app.importers.inventory_1c import parse_inventory_import
 from app.warehouse.models import (
     MaterialPriceInput,
     ReceiptLineInput,
@@ -119,6 +122,52 @@ def test_material_price_period_must_be_ordered():
             valid_to="2026-08-27T00:00:00+03:00",
             recorded_by="test",
         )
+
+
+def test_inventory_docx_is_preview_only_and_preserves_accounting_anomalies():
+    def row(*values: str) -> str:
+        cells = "".join(
+            f"<w:tc><w:p><w:r><w:t>{value}</w:t></w:r></w:p></w:tc>"
+            for value in values
+        )
+        return f"<w:tr>{cells}</w:tr>"
+
+    document = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+        "<w:body><w:tbl>"
+        + row("Склад", "Количество", "Цена", "Стоимость")
+        + row("Основной склад", "1200,000", "56,12", "67344,00")
+        + row("Бумага 90 2100 Б-люкс", "1200,000", "-1,50", "-1800,00")
+        + row("Картон Белый лайнер Илим 110/2050", "", "95,64", "0,00")
+        + row("Итого", "1200,000", "", "")
+        + "</w:tbl></w:body></w:document>"
+    )
+    content = BytesIO()
+    with zipfile.ZipFile(content, "w") as archive:
+        archive.writestr("word/document.xml", document)
+
+    result = parse_inventory_import(content.getvalue(), "inventory.docx")
+    assert result["can_apply"] is False
+    assert result["source_role"] == "inventory_reference_only"
+    assert result["stats"] == {
+        "rows_total": 2,
+        "rows_ready": 0,
+        "rows_warning": 1,
+        "rows_error": 1,
+        "missing_quantity": 1,
+        "negative_price": 1,
+        "warehouses": ["Основной склад"],
+        "calculated_total_kg": 1200.0,
+        "reported_total_kg": 1200.0,
+        "totals_match": True,
+    }
+    assert result["rows"][0]["material_type"] == "fluting"
+    assert result["rows"][0]["gsm"] == 90.0
+    assert result["rows"][0]["roll_width_mm"] == 2100.0
+    assert result["rows"][1]["material_type"] == "liner"
+    assert result["rows"][1]["gsm"] == 110.0
+    assert result["rows"][1]["roll_width_mm"] == 2050.0
 
 
 def test_non_kg_quantity_requires_explicit_conversion():

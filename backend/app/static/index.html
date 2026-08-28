@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#14283d">
-  <title>KE | BOX CALC v0.8</title>
+  <meta name="theme-color" content="#292d30">
+  <title>KE | BOX CALC v0.9</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/static/app.css">
 </head>
@@ -14,7 +14,7 @@
       <div class="brand">
         <div class="brand-mark">KE</div>
         <div>
-          <div class="brand-title">KE | BOX CALC <span class="version">v0.8</span></div>
+          <div class="brand-title">KE | BOX CALC <span class="version">v0.9</span></div>
           <div class="brand-sub">конфигурация ООО "ПК Руспак"</div>
         </div>
       </div>
@@ -36,7 +36,7 @@
         <button class="nav-btn" data-view="reports"><span>05</span> Отчёты</button>
       </nav>
       <div class="sidebar-foot">
-        <div>ТЗ: v2.1 · 27.08.2026</div>
+        <div>ТЗ: v2.2 · 28.08.2026</div>
         <div id="sessionHint">Сессия не сохранена</div>
       </div>
     </aside>
@@ -254,7 +254,7 @@
         <div class="page-head">
           <div>
             <div class="eyebrow">Оперативные данные</div>
-            <h1>1С и лаборатория</h1>
+            <h1>Сырьё, инвентаризация и лаборатория</h1>
             <p>Импорт всегда проходит через предпросмотр. Ошибочные данные не применяются молча.</p>
           </div>
         </div>
@@ -263,17 +263,15 @@
           <article class="card">
             <div class="card-head">
               <div>
-                <h2>Сырьё из 1С</h2>
-                <p>Цена, остаток и ширина рулона участвуют в текущей сессии после применения.</p>
+                <h2>Справочник сырья</h2>
+                <p>Карточки, история цен и допустимые ширины загружаются из PostgreSQL.</p>
               </div>
               <span id="materialsCount" class="pill">0 активно</span>
             </div>
-            <input id="onecFile" class="file-input" type="file" accept=".xlsx,.csv">
             <div class="button-row">
-              <button class="btn secondary" type="button" onclick="preview1C()">Предпросмотр</button>
-              <button id="apply1cBtn" class="btn primary" type="button" onclick="apply1C()" disabled>Использовать в расчёте</button>
+              <button class="btn secondary" type="button" onclick="loadMaterialDirectory()">Обновить из базы</button>
             </div>
-            <div id="onecState" class="inline-result muted">Файл не загружен.</div>
+            <div id="onecState" class="inline-result muted">Справочник ещё не загружен.</div>
             <div id="materialsTable" class="mini-table"></div>
           </article>
 
@@ -297,8 +295,25 @@
         <article class="card">
           <div class="card-head">
             <div>
+              <h2>Учётные остатки для инвентаризации</h2>
+              <p>DOCX из 1С используется только как исходная сторона сверки. Предпросмотр не изменяет склад.</p>
+            </div>
+            <span id="inventoryCount" class="pill">не загружено</span>
+          </div>
+          <input id="inventoryFile" class="file-input" type="file" accept=".docx">
+          <div class="button-row">
+            <button class="btn secondary" type="button" onclick="previewInventory()">Проверить файл</button>
+            <button class="btn disabled" type="button" disabled>Подтвердить инвентаризацию</button>
+          </div>
+          <div id="inventoryState" class="inline-result muted">Остатки не загружены. Списание и оприходование недоступны из предпросмотра.</div>
+          <div id="inventoryTable" class="mini-table"></div>
+        </article>
+
+        <article class="card">
+          <div class="card-head">
+            <div>
               <h2>Доступные ширины рулонов</h2>
-              <p>Если поле пустое, v0.8 берёт уникальные доступные ширины из активного импорта 1С.</p>
+              <p>После проверки справочника поле сможет заполняться подтверждёнными ширинами из PostgreSQL.</p>
             </div>
           </div>
           <div class="form-grid cols-3">
