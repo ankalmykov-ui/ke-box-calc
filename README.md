@@ -31,7 +31,7 @@
 
 ## Локальная проверка
 
-После привязки отдельного Vercel staging и проверки переменных окружения:
+После настройки локального окружения или отдельного staging в Yandex Cloud:
 
 ```bash
 uv sync --dev
@@ -40,9 +40,18 @@ uv run pytest
 uv run uvicorn ke_box_calc.main:app --reload
 ```
 
-Миграции выполняются отдельной командой и никогда не запускаются автоматически на холодном старте Vercel Function:
+Миграции выполняются отдельной командой и никогда не запускаются автоматически при старте контейнера:
 
 ```bash
 uv run python -m ke_box_calc.db.migrator status
 uv run python -m ke_box_calc.db.migrator up
+```
+
+## Docker и Yandex Cloud
+
+v2 поставляется как переносимый Docker-образ и не зависит от Vercel. Инструкция по изолированному staging находится в [deploy/yandex-cloud/README.md](deploy/yandex-cloud/README.md).
+
+```bash
+docker build --tag ke-box-calc-v2:local .
+docker run --rm --publish 8080:8080 --env DATABASE_REQUIRED=false ke-box-calc-v2:local
 ```

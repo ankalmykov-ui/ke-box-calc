@@ -32,3 +32,10 @@ def test_stage_two_has_no_calculation_implementation() -> None:
     calculation_files = list((ROOT / "ke_box_calc" / "domains" / "calculation").glob("*.py"))
     assert [path.name for path in calculation_files] == ["__init__.py"]
 
+
+def test_deployment_is_containerized_without_vercel_entrypoints() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "${PORT}" in dockerfile
+    assert "uvicorn ke_box_calc.main:app" in dockerfile
+    assert not (ROOT / "vercel.json").exists()
+    assert not (ROOT / "api" / "index.py").exists()

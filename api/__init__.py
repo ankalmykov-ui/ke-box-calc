@@ -1,2 +1,0 @@
-"""Vercel function package."""
-
