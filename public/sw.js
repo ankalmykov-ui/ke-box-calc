@@ -1,5 +1,5 @@
 const CACHE = "ke-box-calc-v2-stage2";
-const ASSETS = ["/", "/assets/app.css", "/assets/app.js", "/assets/icon.svg"];
+const ASSETS = ["/", "/app.css", "/app.js", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
@@ -15,4 +15,3 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET" || new URL(event.request.url).pathname.startsWith("/api/")) return;
   event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
 });
-

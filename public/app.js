@@ -19,8 +19,7 @@ async function loadMeta() {
 }
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("/assets/sw.js").catch(() => {});
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
 }
 
 loadMeta();
-

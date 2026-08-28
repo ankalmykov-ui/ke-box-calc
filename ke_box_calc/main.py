@@ -30,9 +30,6 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 app.include_router(api_v2_router)
-app.mount("/assets", StaticFiles(directory=PUBLIC, check_dir=False), name="assets")
-
-
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
     return FileResponse(PUBLIC / "index.html")
@@ -41,3 +38,6 @@ def index() -> FileResponse:
 @app.get("/health", include_in_schema=False)
 def legacy_health_alias() -> dict:
     return {"status": "ok", "app_version": APP_VERSION, "api": "/api/v2"}
+
+
+app.mount("/", StaticFiles(directory=PUBLIC, check_dir=False), name="public")
