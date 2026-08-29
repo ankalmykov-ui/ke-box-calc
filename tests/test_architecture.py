@@ -28,9 +28,11 @@ def test_calculation_domain_does_not_import_io_boundaries() -> None:
         assert not any(token in text for token in forbidden_tokens)
 
 
-def test_stage_two_has_no_calculation_implementation() -> None:
-    calculation_files = list((ROOT / "ke_box_calc" / "domains" / "calculation").glob("*.py"))
-    assert [path.name for path in calculation_files] == ["__init__.py"]
+def test_first_contour_keeps_calculation_inside_domain() -> None:
+    calculation_files = sorted(
+        path.name for path in (ROOT / "ke_box_calc" / "domains" / "calculation").glob("*.py")
+    )
+    assert calculation_files == ["__init__.py", "service.py"]
 
 
 def test_deployment_is_containerized_without_vercel_entrypoints() -> None:

@@ -22,9 +22,9 @@
 
   <main>
     <section class="hero">
-      <p class="eyebrow">Этап 2 · технический каркас</p>
-      <h1>Новая расчётная платформа</h1>
-      <p>Независимая реализация по ТЗ v2.2. Расчётное ядро намеренно ещё не подключено.</p>
+      <p class="eyebrow">Запуск №1 · рабочий контур</p>
+      <h1>Сырьё и первый расчёт</h1>
+      <p>Настоящие остатки PostgreSQL и один честный вариант FEFCO 0201. Неполные данные не подменяются нулями.</p>
     </section>
 
     <section class="cards" aria-label="Состояние платформы">
@@ -45,21 +45,50 @@
       </article>
       <article class="card accent">
         <span>Расчёт</span>
-        <strong>Не запущен</strong>
-        <small>Появится только замкнутым сценарием</small>
+        <strong>Первый вариант</strong>
+        <small>Геометрия · сырьё · обрезь · цена</small>
       </article>
     </section>
 
-    <section class="principle">
-      <div>
-        <p class="eyebrow">Базовый принцип</p>
-        <h2>Один вариант — одно полное решение</h2>
-      </div>
-      <p>Композиция, конкретное сырьё, ширины рулонов, раскрой, BCT и стоимость будут рассчитываться совместно. Геометрическая раскладка без цены не станет «оптимальным вариантом».</p>
+    <section class="workspace">
+      <article class="panel">
+        <p class="eyebrow">Склад</p>
+        <h2>Добавить сырьё</h2>
+        <form id="material-form" class="form-grid">
+          <label class="wide">Наименование<input name="name" required value="Бумага 140 2100 Воронеж Бум"></label>
+          <label>Тип<select name="material_type"><option value="paper">Бумага</option><option value="liner">Картон</option></select></label>
+          <label>Грамматура, г/м²<input name="grammage_g_m2" type="number" min="1" value="140" required></label>
+          <label>Ширина, мм<input name="width_mm" type="number" min="500" value="2100" required></label>
+          <label>Остаток, кг<input name="quantity_kg" type="number" min="0.001" step="0.001" value="1000" required></label>
+          <label>Цена, ₽/кг<input name="price_rub_kg" type="number" min="0" step="0.01" value="48.11"></label>
+          <button class="primary wide" type="submit">Добавить в базу</button>
+        </form>
+        <p id="material-message" class="message" role="status"></p>
+      </article>
+
+      <article class="panel">
+        <div class="section-head"><div><p class="eyebrow">Остатки</p><h2>Сырьё в базе</h2></div><button id="refresh-materials" class="quiet" type="button">Обновить</button></div>
+        <div id="materials-list" class="material-list"><p class="muted">Загрузка…</p></div>
+      </article>
+    </section>
+
+    <section class="panel calculation-panel">
+      <p class="eyebrow">FEFCO 0201</p>
+      <h2>Рассчитать первый вариант</h2>
+      <form id="calculation-form" class="form-grid calc-grid">
+        <label>Длина L, мм<input name="length_mm" type="number" value="400" required></label>
+        <label>Ширина B, мм<input name="width_mm" type="number" value="300" required></label>
+        <label>Высота H, мм<input name="height_mm" type="number" value="250" required></label>
+        <label>Количество, шт<input name="quantity" type="number" value="1000" required></label>
+        <label>Технологический отход, мм<input name="technological_trim_mm" type="number" min="0" max="50" value="0" required></label>
+        <fieldset class="wide"><legend>Три слоя сырья</legend><div id="layer-selects" class="layers"></div></fieldset>
+        <button class="primary wide" type="submit">Рассчитать</button>
+      </form>
+      <div id="calculation-result" class="result muted">Результат появится здесь.</div>
     </section>
   </main>
 
-  <footer>ООО &quot;ПК Руспак&quot; · staging v2.0</footer>
+  <footer>ООО &quot;ПК Руспак&quot; · KE | BOX CALC v2 staging</footer>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

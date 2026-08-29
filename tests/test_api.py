@@ -5,11 +5,11 @@ from ke_box_calc.main import app
 client = TestClient(app)
 
 
-def test_root_identifies_stage_two_without_fake_calculator() -> None:
+def test_root_identifies_first_working_contour() -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert "Этап 2 · технический каркас" in response.text
-    assert "Расчётное ядро намеренно ещё не подключено" in response.text
+    assert "Запуск №1 · рабочий контур" in response.text
+    assert "Сырьё и первый расчёт" in response.text
 
 
 def test_v2_meta_contract() -> None:
@@ -17,10 +17,17 @@ def test_v2_meta_contract() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["api_version"] == "v2"
-    assert body["stage"] == 2
-    assert body["calculation_engine"] == "not_implemented"
+    assert body["stage"] == 3
+    assert body["calculation_engine"] == "first_variant"
     assert body["database"]["schema_min"] == "2.0.0"
-    assert body["database"]["known_migrations"] == ["0001_identity_scope"]
+    assert body["database"]["known_migrations"] == [
+        "0001_identity_scope",
+        "0002_materials_warehouse",
+    ]
+
+
+def test_materials_require_database() -> None:
+    assert client.get("/api/v2/materials").status_code == 503
 
 
 def test_liveness_and_optional_local_database_readiness() -> None:
@@ -34,4 +41,3 @@ def test_openapi_is_versioned() -> None:
     response = client.get("/api/v2/openapi.json")
     assert response.status_code == 200
     assert "/api/v2/meta" in response.json()["paths"]
-

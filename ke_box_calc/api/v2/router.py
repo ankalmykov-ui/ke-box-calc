@@ -1,11 +1,41 @@
+from decimal import Decimal
+from uuid import UUID
+
 from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel, Field
 
 from ke_box_calc import API_VERSION, APP_VERSION
 from ke_box_calc.core.config import get_settings
 from ke_box_calc.db.connection import ping_database
 from ke_box_calc.db.migrator import load_migrations
+from ke_box_calc.domains.calculation.service import calculate_first_variant
+from ke_box_calc.domains.materials.service import (
+    add_material_with_balance,
+    get_materials_by_ids,
+    list_materials,
+)
 
 router = APIRouter(prefix="/api/v2")
+
+
+class MaterialCreate(BaseModel):
+    name: str = Field(min_length=3, max_length=300)
+    material_type: str = Field(pattern="^(paper|liner)$")
+    grammage_g_m2: Decimal = Field(gt=0, le=1000)
+    width_mm: int = Field(ge=500, le=3000)
+    manufacturer: str | None = Field(default=None, max_length=200)
+    quantity_kg: Decimal = Field(gt=0)
+    price_rub_kg: Decimal | None = Field(default=None, ge=0)
+    source_name: str = Field(default="Ручное добавление", max_length=200)
+
+
+class CalculationRequest(BaseModel):
+    length_mm: int = Field(gt=0, le=5000)
+    width_mm: int = Field(gt=0, le=5000)
+    height_mm: int = Field(gt=0, le=5000)
+    quantity: int = Field(gt=0, le=1_000_000)
+    material_ids: list[UUID] = Field(min_length=3, max_length=3)
+    technological_trim_mm: int = Field(default=0, ge=0, le=50)
 
 
 @router.get("/meta", tags=["system"])
@@ -15,9 +45,9 @@ def meta() -> dict:
         "app": "KE | BOX CALC",
         "app_version": APP_VERSION,
         "api_version": API_VERSION,
-        "stage": 2,
-        "stage_name": "technical_foundation",
-        "calculation_engine": "not_implemented",
+        "stage": 3,
+        "stage_name": "first_working_contour",
+        "calculation_engine": "first_variant",
         "database": {
             "configured": settings.database_configured,
             "required": settings.database_required,
@@ -50,3 +80,37 @@ def ready() -> dict:
         )
     return {"status": "ok", "database": "ready"}
 
+
+@router.get("/materials", tags=["materials"])
+def materials() -> dict:
+    try:
+        return {"items": list_materials()}
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="База сырья пока недоступна") from exc
+
+
+@router.post("/materials", status_code=201, tags=["materials"])
+def create_material(payload: MaterialCreate) -> dict:
+    try:
+        return add_material_with_balance(**payload.model_dump())
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/calculations/first-variant", tags=["calculation"])
+def first_variant(payload: CalculationRequest) -> dict:
+    try:
+        values = payload.model_dump()
+        material_ids = values.pop("material_ids")
+        material_rows = get_materials_by_ids(material_ids)
+        rows_by_id = {row["id"]: row for row in material_rows}
+        ordered_rows = [
+            rows_by_id[material_id]
+            for material_id in material_ids
+            if material_id in rows_by_id
+        ]
+        return calculate_first_variant(materials=ordered_rows, **values)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="База сырья пока недоступна") from exc
