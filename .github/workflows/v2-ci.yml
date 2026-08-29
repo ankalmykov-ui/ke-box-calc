@@ -63,3 +63,55 @@ jobs:
       - run: uv run python -m ke_box_calc.db.migrator status
       - run: uv run python -m ke_box_calc.db.migrator down
       - run: uv run python -m ke_box_calc.db.migrator up
+
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/v2-dev'
+    needs: [quality, container, migrations]
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      YC_REGISTRY_ID: crpdjisupq0qdshjp502
+      YC_REPOSITORY: ke-box-calc-v2
+      YC_CI_SERVICE_ACCOUNT_ID: ajeo882o9ucakl6drviv
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get short-lived Yandex Cloud IAM token
+        id: get-iam-token
+        uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
+        with:
+          yc-sa-id: ${{ env.YC_CI_SERVICE_ACCOUNT_ID }}
+
+      - name: Log in to Yandex Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: cr.yandex
+          username: iam
+          password: ${{ steps.get-iam-token.outputs.token }}
+
+      - name: Build and push immutable staging image
+        run: |
+          image="cr.yandex/${YC_REGISTRY_ID}/${YC_REPOSITORY}:${GITHUB_SHA}"
+          docker build --tag "${image}" .
+          docker push "${image}"
+
+      - name: Deploy staging revision
+        uses: yc-actions/yc-sls-container-deploy@v5
+        with:
+          yc-sa-id: ${{ env.YC_CI_SERVICE_ACCOUNT_ID }}
+          container-name: ke-box-calc-v2-staging
+          folder-id: b1gvc92l93dufjs2hcpd
+          revision-service-account-id: ajed288vbcj1iab4aljt
+          revision-cores: 1
+          revision-memory: 512Mb
+          revision-core-fraction: 100
+          revision-concurrency: 8
+          revision-image-url: cr.yandex/${{ env.YC_REGISTRY_ID }}/${{ env.YC_REPOSITORY }}:${{ github.sha }}
+          revision-execution-timeout: 30
+          revision-env: |
+            APP_ENV=staging
+            APP_LOG_LEVEL=INFO
+            DATABASE_REQUIRED=false

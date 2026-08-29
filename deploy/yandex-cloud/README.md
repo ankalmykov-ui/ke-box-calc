@@ -17,11 +17,11 @@ KE | BOX CALC v2 разворачивается как обычный Docker-о�
 2. Сервисный аккаунт `ke-box-calc-staging` с минимальными правами.
 3. Приватный Container Registry `ke-box-calc`.
 4. Serverless Container `ke-box-calc-v2-staging`.
-5. Отдельная база PostgreSQL `boxcalc_staging`.
-6. Lockbox-секрет со строкой `DATABASE_URL`.
+5. После выбора постоянного размещения — отдельная база PostgreSQL `boxcalc_staging`.
+6. После подключения базы — Lockbox-секрет со строкой `DATABASE_URL`.
 7. Позднее — Object Storage для импортов, инвентаризаций и PDF.
 
-Serverless Container и PostgreSQL подключаются к одной закрытой облачной сети. Публичный доступ к базе не включается.
+Первая staging-ревизия запускается без базы с `DATABASE_REQUIRED=false`, чтобы отдельно проверить публикацию и HTTP-контур. Публичный доступ к PostgreSQL на порту `5432` не допускается. Если временная база размещается на постоянно включённом Windows-компьютере, backend и PostgreSQL должны работать рядом, а наружу публикуется только HTTPS приложения. Перенос в облачный PostgreSQL выполняется стандартными `pg_dump`/`pg_restore`, без изменения API и доменной модели.
 
 ## Контейнер
 
@@ -42,7 +42,20 @@ curl --fail http://localhost:8080/api/v2/health/live
 curl --fail http://localhost:8080/api/v2/health/ready
 ```
 
-## Публикация образа
+## Автоматическая публикация
+
+Push в `v2-dev` после прохождения тестов публикует образ и обновляет только staging. GitHub Actions получает краткоживущий IAM-токен через OIDC Workload Identity Federation; статических ключей и GitHub secrets для Yandex Cloud нет.
+
+- CI service account: `ke-box-calc-ci` (`ajeo882o9ucakl6drviv`);
+- federation: `ke-box-calc-github` (`ajeheltm1j9ag5ccffsa`);
+- разрешённый subject: `repo:ankalmykov-ui/ke-box-calc:ref:refs/heads/v2-dev`;
+- registry: `ke-box-calc` (`crpdjisupq0qdshjp502`);
+- container: `ke-box-calc-v2-staging` (`bbafivttvb8s8ke96goj`);
+- runtime service account: `ke-box-calc-staging` (`ajed288vbcj1iab4aljt`).
+
+CI имеет только `container-registry.images.pusher` на реестр, `serverless-containers.editor` на staging-контейнер и `iam.serviceAccounts.user` на runtime service account.
+
+## Ручная публикация (аварийный сценарий)
 
 После выбора отдельного каталога и создания реестра:
 
@@ -53,7 +66,7 @@ docker tag ke-box-calc-v2:staging cr.yandex/<REGISTRY_ID>/ke-box-calc-v2:<GIT_SH
 docker push cr.yandex/<REGISTRY_ID>/ke-box-calc-v2:<GIT_SHA>
 ```
 
-Ревизия разворачивается с неизменяемым тегом коммита, а не `latest`:
+Ревизия разворачивается с неизменяемым тегом коммита, а не `latest`. До подключения базы используется безопасный bootstrap-режим:
 
 ```bash
 yc serverless container revision deploy \
@@ -63,9 +76,7 @@ yc serverless container revision deploy \
   --memory 512MB \
   --execution-timeout 30s \
   --service-account-id <SERVICE_ACCOUNT_ID> \
-  --network-id <NETWORK_ID> \
-  --environment APP_ENV=staging,DATABASE_REQUIRED=true,APP_LOG_LEVEL=INFO \
-  --secret environment-variable=DATABASE_URL,id=<LOCKBOX_SECRET_ID>,version-id=<LOCKBOX_VERSION_ID>,key=database_url
+  --environment APP_ENV=staging,DATABASE_REQUIRED=false,APP_LOG_LEVEL=INFO
 ```
 
-Сервисный аккаунт получает `container-registry.images.puller` на реестр и `lockbox.payloadViewer` только на секрет приложения. `DATABASE_URL` передаётся из Lockbox и никогда не записывается в команду, историю shell или репозиторий.
+После подключения PostgreSQL runtime service account получает доступ только к нужному сетевому/секретному ресурсу. `DATABASE_URL` передаётся из Lockbox и никогда не записывается в команду, историю shell или репозиторий.
