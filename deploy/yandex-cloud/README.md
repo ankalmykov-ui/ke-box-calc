@@ -48,7 +48,7 @@ Push в `v2-dev` после прохождения тестов публикуе
 
 - CI service account: `ke-box-calc-ci` (`ajeo882o9ucakl6drviv`);
 - federation: `ke-box-calc-github` (`ajeheltm1j9ag5ccffsa`);
-- разрешённый subject: `repo:ankalmykov-ui/ke-box-calc:ref:refs/heads/v2-dev`;
+- разрешённый subject: `repo:ankalmykov-ui@321553066/ke-box-calc@1347799206:ref:refs/heads/v2-dev`;
 - registry: `ke-box-calc` (`crpdjisupq0qdshjp502`);
 - container: `ke-box-calc-v2-staging` (`bbafivttvb8s8ke96goj`);
 - runtime service account: `ke-box-calc-staging` (`ajed288vbcj1iab4aljt`).
