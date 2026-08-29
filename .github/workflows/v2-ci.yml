@@ -97,20 +97,27 @@ jobs:
           docker build --tag "${image}" .
           docker push "${image}"
 
-      - name: Deploy staging revision
-        uses: yc-actions/yc-sls-container-deploy@v5
-        with:
-          yc-sa-id: ${{ env.YC_CI_SERVICE_ACCOUNT_ID }}
-          container-name: ke-box-calc-v2-staging
-          folder-id: b1gvc92l93dufjs2hcpd
-          revision-service-account-id: ajed288vbcj1iab4aljt
-          revision-cores: 1
-          revision-memory: 512Mb
-          revision-core-fraction: 100
-          revision-concurrency: 8
-          revision-image-url: cr.yandex/${{ env.YC_REGISTRY_ID }}/${{ env.YC_REPOSITORY }}:${{ github.sha }}
-          revision-execution-timeout: 30
-          revision-env: |
-            APP_ENV=staging
-            APP_LOG_LEVEL=INFO
-            DATABASE_REQUIRED=false
+      - name: Install Yandex Cloud CLI
+        run: |
+          mkdir -p "${RUNNER_TEMP}/yc-bin"
+          curl --fail --silent --show-error --location \
+            --output "${RUNNER_TEMP}/yc.tar.gz" \
+            https://storage.yandexcloud.net/yandexcloud-yc/release/yc_linux_amd64.tar.gz
+          tar -xzf "${RUNNER_TEMP}/yc.tar.gz" -C "${RUNNER_TEMP}/yc-bin"
+          echo "${RUNNER_TEMP}/yc-bin" >> "${GITHUB_PATH}"
+
+      - name: Deploy staging revision by immutable container ID
+        env:
+          YC_TOKEN: ${{ steps.get-iam-token.outputs.token }}
+        run: |
+          image="cr.yandex/${YC_REGISTRY_ID}/${YC_REPOSITORY}:${GITHUB_SHA}"
+          yc --token "${YC_TOKEN}" serverless container revision deploy \
+            --container-id bbafivttvb8s8ke96goj \
+            --image "${image}" \
+            --cores 1 \
+            --memory 512MB \
+            --core-fraction 100 \
+            --concurrency 8 \
+            --execution-timeout 30s \
+            --service-account-id ajed288vbcj1iab4aljt \
+            --environment APP_ENV=staging,APP_LOG_LEVEL=INFO,DATABASE_REQUIRED=false
