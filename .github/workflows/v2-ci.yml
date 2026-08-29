@@ -68,7 +68,6 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/v2-dev'
     needs: [quality, container, migrations]
     runs-on: ubuntu-latest
-    environment: staging
     permissions:
       contents: read
       id-token: write
