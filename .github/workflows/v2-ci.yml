@@ -78,6 +78,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Inspect non-secret OIDC claim identifiers
+        run: |
+          python - <<'PY'
+          import base64
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          audience = f"https://github.com/{os.environ['GITHUB_REPOSITORY_OWNER']}"
+          query = urllib.parse.urlencode({"audience": audience})
+          request = urllib.request.Request(
+              f"{os.environ['ACTIONS_ID_TOKEN_REQUEST_URL']}&{query}",
+              headers={
+                  "Authorization": (
+                      f"bearer {os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']}"
+                  )
+              },
+          )
+          with urllib.request.urlopen(request) as response:
+              token = json.load(response)["value"]
+          payload = token.split(".")[1]
+          payload += "=" * (-len(payload) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload))
+          visible = {
+              key: claims.get(key)
+              for key in ("sub", "iss", "aud", "ref", "repository")
+          }
+          print(json.dumps(visible, sort_keys=True))
+          PY
+
       - name: Get short-lived Yandex Cloud IAM token
         id: get-iam-token
         uses: docker://ghcr.io/yc-actions/yc-iam-token-fed:1.0.0
