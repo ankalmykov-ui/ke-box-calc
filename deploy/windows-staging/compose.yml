@@ -1,0 +1,40 @@
+name: ke-box-calc-v2-staging
+
+services:
+  database:
+    image: postgres:17-alpine
+    container_name: ke-box-calc-v2-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-boxcalc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-boxcalc_staging}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  app:
+    build:
+      context: ../..
+    container_name: ke-box-calc-v2-app
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      APP_ENV: windows-staging
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+      DATABASE_REQUIRED: "true"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-boxcalc}:${POSTGRES_PASSWORD}@database:5432/${POSTGRES_DB:-boxcalc_staging}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://127.0.0.1:8080,http://localhost:8080}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
+
+volumes:
+  postgres_data:
