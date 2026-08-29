@@ -108,10 +108,10 @@ jobs:
 
       - name: Deploy staging revision by immutable container ID
         env:
-          YC_TOKEN: ${{ steps.get-iam-token.outputs.token }}
+          YC_IAM_TOKEN: ${{ steps.get-iam-token.outputs.token }}
         run: |
           image="cr.yandex/${YC_REGISTRY_ID}/${YC_REPOSITORY}:${GITHUB_SHA}"
-          yc --token "${YC_TOKEN}" serverless container revision deploy \
+          yc serverless container revision deploy \
             --container-id bbafivttvb8s8ke96goj \
             --image "${image}" \
             --cores 1 \
