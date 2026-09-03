@@ -32,7 +32,7 @@ def test_first_contour_keeps_calculation_inside_domain() -> None:
     calculation_files = sorted(
         path.name for path in (ROOT / "ke_box_calc" / "domains" / "calculation").glob("*.py")
     )
-    assert calculation_files == ["__init__.py", "service.py"]
+    assert calculation_files == ["__init__.py", "optimizer.py", "references.py", "service.py"]
 
 
 def test_deployment_is_containerized_without_vercel_entrypoints() -> None:

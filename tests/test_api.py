@@ -5,11 +5,11 @@ from ke_box_calc.main import app
 client = TestClient(app)
 
 
-def test_root_identifies_first_working_contour() -> None:
+def test_root_identifies_automatic_calculation() -> None:
     response = client.get("/")
     assert response.status_code == 200
-    assert "Запуск №1 · рабочий контур" in response.text
-    assert "Сырьё и первый расчёт" in response.text
+    assert "Рассчитать автоматически" in response.text
+    assert "один или несколько коробов" in response.text
 
 
 def test_v2_meta_contract() -> None:
@@ -17,12 +17,13 @@ def test_v2_meta_contract() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["api_version"] == "v2"
-    assert body["stage"] == 3
-    assert body["calculation_engine"] == "first_variant"
+    assert body["stage"] == 4
+    assert body["calculation_engine"] == "automatic_stock_optimizer"
     assert body["database"]["schema_min"] == "2.0.0"
     assert body["database"]["known_migrations"] == [
         "0001_identity_scope",
         "0002_materials_warehouse",
+        "0003_calculation_references",
     ]
 
 

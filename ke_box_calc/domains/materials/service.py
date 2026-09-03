@@ -24,6 +24,26 @@ def list_materials() -> list[dict]:
         ).fetchall()
 
 
+def list_materials_for_calculation() -> list[dict]:
+    with get_connection() as connection:
+        return connection.execute(
+            """
+            SELECT m.id, m.name, m.material_type, m.grammage_g_m2, m.width_mm,
+                   m.manufacturer, m.classification_status,
+                   COALESCE(SUM(sm.quantity_kg), 0) AS balance_kg,
+                   p.price_rub_kg
+            FROM materials m
+            LEFT JOIN stock_movements sm ON sm.material_id = m.id
+            LEFT JOIN material_price_versions p
+              ON p.material_id = m.id AND p.valid_to IS NULL
+            WHERE m.classification_status <> 'rejected'
+            GROUP BY m.id, p.price_rub_kg
+            HAVING COALESCE(SUM(sm.quantity_kg), 0) > 0
+            ORDER BY m.width_mm, m.material_type, m.grammage_g_m2, m.name
+            """
+        ).fetchall()
+
+
 def get_materials_by_ids(material_ids: list[UUID]) -> list[dict]:
     with get_connection() as connection:
         return connection.execute(

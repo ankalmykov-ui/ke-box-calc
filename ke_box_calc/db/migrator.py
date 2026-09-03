@@ -80,9 +80,7 @@ def migrate_up() -> list[str]:
     with get_connection() as connection, connection.transaction():
         connection.execute("SELECT pg_advisory_xact_lock(%s)", (LOCK_KEY,))
         _ensure_registry(connection)
-        rows = connection.execute(
-            "SELECT version, checksum FROM schema_migrations"
-        ).fetchall()
+        rows = connection.execute("SELECT version, checksum FROM schema_migrations").fetchall()
         applied = {row["version"]: row["checksum"] for row in rows}
         for migration in load_migrations():
             if migration.version in applied:

@@ -1,2 +1,1 @@
 """Raw material catalog boundary."""
-

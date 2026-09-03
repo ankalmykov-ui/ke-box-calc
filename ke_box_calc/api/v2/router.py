@@ -8,12 +8,17 @@ from ke_box_calc import API_VERSION, APP_VERSION
 from ke_box_calc.core.config import get_settings
 from ke_box_calc.db.connection import ping_database
 from ke_box_calc.db.migrator import load_migrations
-from ke_box_calc.domains.calculation.service import calculate_first_variant
+from ke_box_calc.domains.calculation.references import get_active_references
+from ke_box_calc.domains.calculation.service import (
+    calculate_first_variant,
+    calculate_order_automatically,
+)
 from ke_box_calc.domains.materials.service import (
     add_material_with_balance,
     get_materials_by_ids,
     import_opening_balance,
     list_materials,
+    list_materials_for_calculation,
 )
 
 router = APIRouter(prefix="/api/v2")
@@ -55,6 +60,21 @@ class CalculationRequest(BaseModel):
     technological_trim_mm: int = Field(default=0, ge=0, le=50)
 
 
+class OrderItemRequest(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=80)
+    length_mm: int = Field(gt=0, le=5000)
+    width_mm: int = Field(gt=0, le=5000)
+    height_mm: int = Field(gt=0, le=5000)
+    quantity: int = Field(gt=0, le=1_000_000)
+    board_grade: str = Field(min_length=2, max_length=20)
+    profile: str = Field(pattern="^(E|B|C)$")
+    technological_trim_mm: int = Field(default=0, ge=0, le=50)
+
+
+class AutomaticCalculationRequest(BaseModel):
+    items: list[OrderItemRequest] = Field(min_length=1, max_length=8)
+
+
 @router.get("/meta", tags=["system"])
 def meta() -> dict:
     settings = get_settings()
@@ -62,9 +82,9 @@ def meta() -> dict:
         "app": "KE | BOX CALC",
         "app_version": APP_VERSION,
         "api_version": API_VERSION,
-        "stage": 3,
-        "stage_name": "first_working_contour",
-        "calculation_engine": "first_variant",
+        "stage": 4,
+        "stage_name": "automatic_order_calculation",
+        "calculation_engine": "automatic_stock_optimizer",
         "database": {
             "configured": settings.database_configured,
             "required": settings.database_required,
@@ -132,12 +152,26 @@ def first_variant(payload: CalculationRequest) -> dict:
         material_rows = get_materials_by_ids(material_ids)
         rows_by_id = {row["id"]: row for row in material_rows}
         ordered_rows = [
-            rows_by_id[material_id]
-            for material_id in material_ids
-            if material_id in rows_by_id
+            rows_by_id[material_id] for material_id in material_ids if material_id in rows_by_id
         ]
         return calculate_first_variant(materials=ordered_rows, **values)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=503, detail="База сырья пока недоступна") from exc
+
+
+@router.post("/calculations/auto", tags=["calculation"])
+def automatic_calculation(payload: AutomaticCalculationRequest) -> dict:
+    try:
+        return calculate_order_automatically(
+            items=[item.model_dump() for item in payload.items],
+            materials=list_materials_for_calculation(),
+            references=get_active_references(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503, detail="Автоматический расчёт временно недоступен"
+        ) from exc

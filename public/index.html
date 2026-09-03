@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#24272a">
-  <meta name="description" content="KE | BOX CALC v2.0 — технологический расчёт гофроупаковки">
-  <title>KE | BOX CALC v2.0</title>
+  <meta name="description" content="KE | BOX CALC v2 — автоматический подбор композиции и раскроя">
+  <title>KE | BOX CALC v2</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" href="/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/app.css">
@@ -13,82 +13,59 @@
 <body>
   <header class="topbar">
     <div class="brand-mark" aria-hidden="true">KE</div>
-    <div class="brand-copy">
-      <strong>KE | BOX CALC</strong>
-      <span>v2.0</span>
-    </div>
-    <div id="api-indicator" class="status">Проверка API…</div>
+    <div class="brand-copy"><strong>KE | BOX CALC</strong><span>v2 · staging</span></div>
+    <div id="api-indicator" class="status">Проверка…</div>
   </header>
-
   <main>
     <section class="hero">
-      <p class="eyebrow">Запуск №1 · рабочий контур</p>
-      <h1>Сырьё и первый расчёт</h1>
-      <p>Настоящие остатки PostgreSQL и один честный вариант FEFCO 0201. Неполные данные не подменяются нулями.</p>
+      <p class="eyebrow">Новый расчёт</p>
+      <h1>Что нужно изготовить?</h1>
+      <p>Добавьте один или несколько коробов. Система сама подберёт раскрой и сырьё из фактических остатков склада.</p>
     </section>
-
-    <section class="cards" aria-label="Состояние платформы">
-      <article class="card">
-        <span>API</span>
-        <strong id="api-version">—</strong>
-        <small>Стабильный контракт</small>
-      </article>
-      <article class="card">
-        <span>PostgreSQL</span>
-        <strong id="database-state">—</strong>
-        <small>Изолированный staging</small>
-      </article>
-      <article class="card">
-        <span>Схема</span>
-        <strong id="schema-range">—</strong>
-        <small>Последовательные миграции</small>
-      </article>
-      <article class="card accent">
-        <span>Расчёт</span>
-        <strong>Первый вариант</strong>
-        <small>Геометрия · сырьё · обрезь · цена</small>
-      </article>
+    <form id="order-form">
+      <section id="positions" class="positions" aria-label="Позиции заказа"></section>
+      <div class="order-actions">
+        <button id="add-position" class="secondary" type="button">+ Добавить короб</button>
+        <button class="primary calculate" type="submit">Рассчитать автоматически</button>
+      </div>
+    </form>
+    <section id="calculation-result" class="result-placeholder" aria-live="polite">
+      Здесь появятся рекомендуемый вариант и до четырёх полных альтернатив.
     </section>
-
-    <section class="workspace">
-      <article class="panel">
-        <p class="eyebrow">Склад</p>
-        <h2>Добавить сырьё</h2>
-        <form id="material-form" class="form-grid">
-          <label class="wide">Наименование<input name="name" required value="Бумага 140 2100 Воронеж Бум"></label>
-          <label>Тип<select name="material_type"><option value="paper">Бумага</option><option value="liner">Картон</option></select></label>
-          <label>Грамматура, г/м²<input name="grammage_g_m2" type="number" min="1" value="140" required></label>
-          <label>Ширина, мм<input name="width_mm" type="number" min="500" value="2100" required></label>
-          <label>Остаток, кг<input name="quantity_kg" type="number" min="0.001" step="0.001" value="1000" required></label>
-          <label>Цена, ₽/кг<input name="price_rub_kg" type="number" min="0" step="0.01" value="48.11"></label>
-          <button class="primary wide" type="submit">Добавить в базу</button>
-        </form>
-        <p id="material-message" class="message" role="status"></p>
-      </article>
-
-      <article class="panel">
-        <div class="section-head"><div><p class="eyebrow">Остатки</p><h2>Сырьё в базе</h2></div><button id="refresh-materials" class="quiet" type="button">Обновить</button></div>
-        <div id="materials-list" class="material-list"><p class="muted">Загрузка…</p></div>
-      </article>
-    </section>
-
-    <section class="panel calculation-panel">
-      <p class="eyebrow">FEFCO 0201</p>
-      <h2>Рассчитать первый вариант</h2>
-      <form id="calculation-form" class="form-grid calc-grid">
-        <label>Длина L, мм<input name="length_mm" type="number" value="400" required></label>
-        <label>Ширина B, мм<input name="width_mm" type="number" value="300" required></label>
-        <label>Высота H, мм<input name="height_mm" type="number" value="250" required></label>
-        <label>Количество, шт<input name="quantity" type="number" value="1000" required></label>
-        <label>Технологический отход, мм<input name="technological_trim_mm" type="number" min="0" max="50" value="0" required></label>
-        <fieldset class="wide"><legend>Три слоя сырья</legend><div id="layer-selects" class="layers"></div></fieldset>
-        <button class="primary wide" type="submit">Рассчитать</button>
-      </form>
-      <div id="calculation-result" class="result muted">Результат появится здесь.</div>
-    </section>
+    <details class="warehouse-panel">
+      <summary>Склад и качество данных</summary>
+      <div class="warehouse-head">
+        <p>Остатки используются автоматически. Ручной выбор трёх слоёв больше не требуется.</p>
+        <button id="refresh-materials" class="quiet" type="button">Обновить</button>
+      </div>
+      <div id="warehouse-summary" class="warehouse-summary">Загрузка…</div>
+      <div id="materials-list" class="material-list"></div>
+    </details>
   </main>
-
-  <footer>ООО &quot;ПК Руспак&quot; · KE | BOX CALC v2 staging</footer>
+  <template id="position-template">
+    <article class="position-card">
+      <div class="position-head">
+        <div><p class="eyebrow">FEFCO 0201</p><h2>Короб <span class="position-number"></span></h2></div>
+        <button class="remove-position danger-link" type="button">Удалить</button>
+      </div>
+      <div class="form-grid">
+        <label>Код позиции<input name="code" maxlength="80" placeholder="BOX-001"></label>
+        <label>Количество, шт<input name="quantity" type="number" min="1" max="1000000" value="1000" required></label>
+        <label>Длина L, мм<input name="length_mm" type="number" min="1" max="5000" value="450" required></label>
+        <label>Ширина B, мм<input name="width_mm" type="number" min="1" max="5000" value="326" required></label>
+        <label>Высота H, мм<input name="height_mm" type="number" min="1" max="5000" value="210" required></label>
+        <label>Марка картона<select name="board_grade" required>
+          <option>T21</option><option>T22</option><option selected>T23.1</option><option>T23.2</option><option>T23.3</option>
+          <option>T24.1</option><option>T24.2</option><option>T24.3</option><option>T25.1</option><option>T25.2</option><option>T25.3</option>
+          <option>T26.1</option><option>T26.2</option><option>T26.3</option><option>T27.1</option><option>T27.2</option><option>T27.3</option>
+          <option>P31</option><option>P32/1</option><option>P32/2</option><option>P33</option>
+        </select></label>
+        <label>Профиль<select name="profile" required><option>E</option><option>B</option><option selected>C</option></select></label>
+        <label>Технологический отход, мм<input name="technological_trim_mm" type="number" min="0" max="50" value="0" required><small>Не меняет клеевой зазор и панели</small></label>
+      </div>
+    </article>
+  </template>
+  <footer>ООО «ПК Руспак» · графитовый интерфейс KE</footer>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

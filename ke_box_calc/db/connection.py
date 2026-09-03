@@ -27,4 +27,3 @@ def ping_database() -> bool:
             return bool(row and row["ok"] == 1)
     except (DatabaseNotConfigured, psycopg.Error):
         return False
-
