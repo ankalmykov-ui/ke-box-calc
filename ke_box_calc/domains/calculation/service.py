@@ -235,12 +235,14 @@ def calculate_order_automatically(
                 "composition_alternatives": composition["alternatives"],
                 "status": "feasible_incomplete",
                 "missing": ([] if verified else ["Состав сырья ещё не утверждён технологом"])
+                + ([selected["price_warning"]] if selected["price_warning"] else [])
                 + ["Нет фактического BCT по сопоставимой композиции"],
             }
             options.append(option)
         options.sort(
             key=lambda row: (
                 row["composition"]["materials_cost_rub"] is None,
+                not row["composition"]["cost_comparable"],
                 row["composition"]["materials_cost_rub"] or Decimal("999999999"),
                 row["total_waste_m2"],
                 row["run_length_m"],

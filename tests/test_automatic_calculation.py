@@ -40,6 +40,7 @@ def material(index: int, material_type: str, grammage: str, price: str) -> dict:
         "balance_kg": Decimal("10000"),
         "price_rub_kg": Decimal(price),
         "classification_status": "preliminary",
+        "price_quality_status": "preliminary",
     }
 
 
@@ -84,6 +85,31 @@ def test_one_click_calculation_selects_layout_and_stock_composition() -> None:
     assert result["launches"][0]["options"][0]["composition"]["materials_cost_rub"] > 0
     assert result["recommendation_available"] is False
     assert result["status"] == "feasible_incomplete"
+
+
+def test_suspicious_price_cannot_win_economic_ranking() -> None:
+    suspicious = material(2, "paper", "112", "0.56")
+    suspicious["price_quality_status"] = "requires_verification"
+    normal = material(3, "paper", "125", "47")
+    result = calculate_order_automatically(
+        items=[
+            {
+                "code": "BOX-001",
+                "length_mm": 450,
+                "width_mm": 326,
+                "height_mm": 210,
+                "quantity": 1000,
+                "board_grade": "T23.1",
+                "profile": "C",
+                "technological_trim_mm": 0,
+            }
+        ],
+        materials=[material(1, "liner", "140", "52"), suspicious, normal],
+        references=REFERENCES,
+    )
+    selected = result["launches"][0]["options"][0]["composition"]
+    assert selected["cost_comparable"] is True
+    assert selected["layers"][1]["material_id"] == normal["id"]
 
 
 def test_two_cut_lengths_can_share_one_launch() -> None:

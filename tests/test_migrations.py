@@ -7,6 +7,7 @@ def test_initial_migration_is_reversible_and_scoped() -> None:
         "0001_identity_scope",
         "0002_materials_warehouse",
         "0003_calculation_references",
+        "0004_price_quality",
     ]
     migration = migrations[0]
     for table in (
@@ -29,3 +30,4 @@ def test_initial_migration_is_reversible_and_scoped() -> None:
     references = migrations[2]
     assert "CREATE TABLE calculation_reference_versions" in references.up_sql
     assert "DROP TABLE IF EXISTS calculation_reference_versions" in references.down_sql
+    assert "ADD COLUMN quality_status" in migrations[3].up_sql

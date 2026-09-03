@@ -63,7 +63,7 @@ function renderOption(option, index) {
       <div><small>Поперечный рез</small><strong>${option.crosscut_lengths_mm.join(" / ")} мм</strong></div>
     </div>
     <div class="layout-lines">${option.items.map(item => `<span>${item.code}: ${item.streams} руч. · ${item.produced_quantity} шт.${item.overproduction_quantity ? ` (+${item.overproduction_quantity})` : ""}</span>`).join("")}</div>
-    <div class="layers-table">${composition.layers.map(layer => `<div><span>${layerLabel(layer.role)}</span><strong>${layer.name}</strong><small>${number(layer.grammage_g_m2)} г/м² · ${number(layer.required_kg, 3)} кг · ${money(layer.cost_rub)}</small></div>`).join("")}</div>
+    <div class="layers-table">${composition.layers.map(layer => `<div><span>${layerLabel(layer.role)}</span><strong>${layer.name}</strong><small>${number(layer.grammage_g_m2)} г/м² · ${number(layer.required_kg, 3)} кг · ${number(layer.price_rub_kg)} ₽/кг · ${money(layer.cost_rub)}</small></div>`).join("")}</div>
     ${(option.missing || []).map(message => `<p class="warning">${message}</p>`).join("")}
   </article>`;
 }

@@ -13,12 +13,12 @@ def list_materials() -> list[dict]:
             SELECT m.id, m.name, m.material_type, m.grammage_g_m2, m.width_mm,
                    m.manufacturer, m.classification_status,
                    COALESCE(SUM(sm.quantity_kg), 0) AS balance_kg,
-                   p.price_rub_kg
+                   p.price_rub_kg, p.quality_status AS price_quality_status
             FROM materials m
             LEFT JOIN stock_movements sm ON sm.material_id = m.id
             LEFT JOIN material_price_versions p
               ON p.material_id = m.id AND p.valid_to IS NULL
-            GROUP BY m.id, p.price_rub_kg
+            GROUP BY m.id, p.price_rub_kg, p.quality_status
             ORDER BY m.material_type, m.grammage_g_m2, m.width_mm, m.name
             """
         ).fetchall()
@@ -31,13 +31,13 @@ def list_materials_for_calculation() -> list[dict]:
             SELECT m.id, m.name, m.material_type, m.grammage_g_m2, m.width_mm,
                    m.manufacturer, m.classification_status,
                    COALESCE(SUM(sm.quantity_kg), 0) AS balance_kg,
-                   p.price_rub_kg
+                   p.price_rub_kg, p.quality_status AS price_quality_status
             FROM materials m
             LEFT JOIN stock_movements sm ON sm.material_id = m.id
             LEFT JOIN material_price_versions p
               ON p.material_id = m.id AND p.valid_to IS NULL
             WHERE m.classification_status <> 'rejected'
-            GROUP BY m.id, p.price_rub_kg
+            GROUP BY m.id, p.price_rub_kg, p.quality_status
             HAVING COALESCE(SUM(sm.quantity_kg), 0) > 0
             ORDER BY m.width_mm, m.material_type, m.grammage_g_m2, m.name
             """

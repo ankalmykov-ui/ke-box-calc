@@ -148,6 +148,7 @@ def choose_composition(layout: dict, materials: list[dict], flute_factor: Decima
         layers = []
         required_by_material: dict[object, Decimal] = {}
         price_missing = False
+        price_requires_verification = False
         total = Decimal(0)
         for role, row, coefficient in (
             ("outer", outer, Decimal(1)),
@@ -166,6 +167,8 @@ def choose_composition(layout: dict, materials: list[dict], flute_factor: Decima
                 price_missing = True
             else:
                 total += cost
+            if row.get("price_quality_status") == "requires_verification":
+                price_requires_verification = True
             layers.append(
                 {
                     "role": role,
@@ -191,12 +194,19 @@ def choose_composition(layout: dict, materials: list[dict], flute_factor: Decima
                 "classification_verified": all(
                     row["classification_status"] == "approved" for row in (outer, medium, inner)
                 ),
+                "cost_comparable": not price_missing and not price_requires_verification,
+                "price_warning": (
+                    "В составе есть аномальная цена; она не участвует в экономическом рейтинге"
+                    if price_requires_verification
+                    else None
+                ),
             }
         )
     if not candidates:
         return None
     candidates.sort(
         key=lambda row: (
+            not row["cost_comparable"],
             row["materials_cost_rub"] is None,
             row["materials_cost_rub"] or Decimal("999999999"),
             sum(Decimal(layer["grammage_g_m2"]) for layer in row["layers"]),
