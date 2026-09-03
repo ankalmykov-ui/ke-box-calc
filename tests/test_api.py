@@ -41,3 +41,25 @@ def test_openapi_is_versioned() -> None:
     response = client.get("/api/v2/openapi.json")
     assert response.status_code == 200
     assert "/api/v2/meta" in response.json()["paths"]
+    assert "/api/v2/materials/import-opening-balance" in response.json()["paths"]
+
+
+def test_opening_balance_import_rejects_invalid_checksum_before_database() -> None:
+    response = client.post(
+        "/api/v2/materials/import-opening-balance",
+        json={
+            "source_name": "Тестовый остаток",
+            "source_checksum": "not-a-checksum",
+            "items": [
+                {
+                    "name": "Бумага 140 2100",
+                    "material_type": "paper",
+                    "grammage_g_m2": 140,
+                    "width_mm": 2100,
+                    "quantity_kg": 100,
+                    "price_rub_kg": 50,
+                }
+            ],
+        },
+    )
+    assert response.status_code == 422

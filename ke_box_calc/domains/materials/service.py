@@ -96,3 +96,96 @@ def add_material_with_balance(
                 (material["id"], price_rub_kg, source_name),
             )
         return dict(material)
+
+
+def import_opening_balance(
+    *,
+    items: list[dict],
+    source_name: str,
+    source_checksum: str,
+) -> dict:
+    """Post one opening-balance document exactly once."""
+    with get_connection() as connection, connection.transaction():
+        document = connection.execute(
+            """
+            INSERT INTO stock_documents(
+                document_type, status, source_name, source_checksum, posted_at
+            )
+            VALUES ('opening_balance', 'posted', %s, %s, now())
+            ON CONFLICT (document_type, source_checksum) DO NOTHING
+            RETURNING id
+            """,
+            (source_name, source_checksum),
+        ).fetchone()
+        if document is None:
+            existing = connection.execute(
+                """
+                SELECT id FROM stock_documents
+                WHERE document_type = 'opening_balance' AND source_checksum = %s
+                """,
+                (source_checksum,),
+            ).fetchone()
+            return {
+                "status": "already_imported",
+                "document_id": existing["id"],
+                "items_imported": 0,
+            }
+
+        for item in items:
+            material = connection.execute(
+                """
+                INSERT INTO materials(
+                    name, material_type, grammage_g_m2, width_mm, manufacturer
+                )
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (name, width_mm) DO UPDATE SET
+                    material_type = EXCLUDED.material_type,
+                    grammage_g_m2 = EXCLUDED.grammage_g_m2,
+                    manufacturer = COALESCE(EXCLUDED.manufacturer, materials.manufacturer)
+                RETURNING id
+                """,
+                (
+                    item["name"],
+                    item["material_type"],
+                    item["grammage_g_m2"],
+                    item["width_mm"],
+                    item.get("manufacturer"),
+                ),
+            ).fetchone()
+            connection.execute(
+                """
+                INSERT INTO stock_movements(
+                    document_id, material_id, quantity_kg, unit_cost_rub_kg,
+                    movement_type
+                )
+                VALUES (%s, %s, %s, %s, 'adjustment')
+                """,
+                (
+                    document["id"],
+                    material["id"],
+                    item["quantity_kg"],
+                    item.get("price_rub_kg"),
+                ),
+            )
+            price = item.get("price_rub_kg")
+            if price is not None:
+                connection.execute(
+                    """
+                    UPDATE material_price_versions SET valid_to = now()
+                    WHERE material_id = %s AND valid_to IS NULL
+                    """,
+                    (material["id"],),
+                )
+                connection.execute(
+                    """
+                    INSERT INTO material_price_versions(material_id, price_rub_kg, source)
+                    VALUES (%s, %s, %s)
+                    """,
+                    (material["id"], price, source_name),
+                )
+
+        return {
+            "status": "imported",
+            "document_id": document["id"],
+            "items_imported": len(items),
+        }

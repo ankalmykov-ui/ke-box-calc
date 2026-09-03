@@ -12,6 +12,7 @@ from ke_box_calc.domains.calculation.service import calculate_first_variant
 from ke_box_calc.domains.materials.service import (
     add_material_with_balance,
     get_materials_by_ids,
+    import_opening_balance,
     list_materials,
 )
 
@@ -27,6 +28,22 @@ class MaterialCreate(BaseModel):
     quantity_kg: Decimal = Field(gt=0)
     price_rub_kg: Decimal | None = Field(default=None, ge=0)
     source_name: str = Field(default="Ручное добавление", max_length=200)
+
+
+class OpeningBalanceItem(BaseModel):
+    name: str = Field(min_length=3, max_length=300)
+    material_type: str = Field(pattern="^(paper|liner)$")
+    grammage_g_m2: Decimal = Field(gt=0, le=1000)
+    width_mm: int = Field(ge=500, le=3000)
+    manufacturer: str | None = Field(default=None, max_length=200)
+    quantity_kg: Decimal = Field(gt=0)
+    price_rub_kg: Decimal | None = Field(default=None, ge=0)
+
+
+class OpeningBalanceImport(BaseModel):
+    source_name: str = Field(min_length=3, max_length=200)
+    source_checksum: str = Field(pattern="^[0-9a-f]{64}$")
+    items: list[OpeningBalanceItem] = Field(min_length=1, max_length=1000)
 
 
 class CalculationRequest(BaseModel):
@@ -93,6 +110,16 @@ def materials() -> dict:
 def create_material(payload: MaterialCreate) -> dict:
     try:
         return add_material_with_balance(**payload.model_dump())
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/materials/import-opening-balance", status_code=201, tags=["materials"])
+def create_opening_balance(payload: OpeningBalanceImport) -> dict:
+    try:
+        values = payload.model_dump()
+        values["items"] = [item.model_dump() for item in payload.items]
+        return import_opening_balance(**values)
     except Exception as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
