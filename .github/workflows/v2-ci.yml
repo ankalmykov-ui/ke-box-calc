@@ -75,6 +75,10 @@ jobs:
       YC_REGISTRY_ID: crpdjisupq0qdshjp502
       YC_REPOSITORY: ke-box-calc-v2
       YC_CI_SERVICE_ACCOUNT_ID: ajeo882o9ucakl6drviv
+      STAGING_DATABASE_HOST: 20b9f9572361ab2bb34060a1.twc1.net
+      STAGING_DATABASE_USER: gen_user
+      STAGING_DATABASE_NAME: boxcalc_staging
+      STAGING_DATABASE_PASSWORD: ${{ secrets.STAGING_DATABASE_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
 
@@ -97,6 +101,20 @@ jobs:
           docker build --tag "${image}" .
           docker push "${image}"
 
+      - name: Apply migrations to staging database
+        run: |
+          test -n "${STAGING_DATABASE_PASSWORD}"
+          encoded_password="$(python -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["STAGING_DATABASE_PASSWORD"], safe=""))')"
+          database_url="postgresql://${STAGING_DATABASE_USER}:${encoded_password}@${STAGING_DATABASE_HOST}:5432/${STAGING_DATABASE_NAME}?sslmode=verify-full"
+          echo "::add-mask::${encoded_password}"
+          echo "::add-mask::${database_url}"
+          image="cr.yandex/${YC_REGISTRY_ID}/${YC_REPOSITORY}:${GITHUB_SHA}"
+          docker run --rm \
+            --env DATABASE_REQUIRED=true \
+            --env DATABASE_URL="${database_url}" \
+            "${image}" \
+            python -m ke_box_calc.db.migrator up
+
       - name: Install Yandex Cloud CLI
         run: |
           mkdir -p "${RUNNER_TEMP}/yc-bin"
@@ -110,6 +128,10 @@ jobs:
         env:
           YC_IAM_TOKEN: ${{ steps.get-iam-token.outputs.token }}
         run: |
+          encoded_password="$(python -c 'import os, urllib.parse; print(urllib.parse.quote(os.environ["STAGING_DATABASE_PASSWORD"], safe=""))')"
+          database_url="postgresql://${STAGING_DATABASE_USER}:${encoded_password}@${STAGING_DATABASE_HOST}:5432/${STAGING_DATABASE_NAME}?sslmode=verify-full"
+          echo "::add-mask::${encoded_password}"
+          echo "::add-mask::${database_url}"
           image="cr.yandex/${YC_REGISTRY_ID}/${YC_REPOSITORY}:${GITHUB_SHA}"
           yc serverless container revision deploy \
             --container-id bbafivttvb8s8ke96goj \
@@ -120,4 +142,5 @@ jobs:
             --concurrency 8 \
             --execution-timeout 30s \
             --service-account-id ajed288vbcj1iab4aljt \
-            --environment APP_ENV=staging,APP_LOG_LEVEL=INFO,DATABASE_REQUIRED=false
+            --environment \
+              "APP_ENV=staging,APP_LOG_LEVEL=INFO,DATABASE_REQUIRED=true,DATABASE_URL=${database_url}"
