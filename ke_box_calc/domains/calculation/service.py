@@ -148,34 +148,31 @@ def calculate_fefco_0201_geometry(
     }
 
 
-def _estimate_bct(item: dict, references: dict) -> dict:
-    ect = references.get("board_grades", {}).get("payload", {}).get(item["board_grade"])
-    if ect is None:
-        return {
-            "calculated_kn": None,
-            "actual_kn": None,
-            "message": "Для марки нет нормативного ECT",
-        }
-    perimeter_m = Decimal(2 * (item["length_mm"] + item["width_mm"])) / Decimal(1000)
-    caliper_m = Decimal(item["geometry"]["caliper_mm"]) / Decimal(1000)
-    calculated = (
-        Decimal("5.87")
-        * Decimal(str(ect))
-        * (caliper_m ** Decimal("0.508"))
-        * (perimeter_m ** Decimal("0.492"))
-    )
+def _strength_requirement(item: dict) -> dict:
+    required = item.get("required_bct_kn")
     return {
-        "calculated_kn": calculated.quantize(Decimal("0.001")),
-        "actual_kn": None,
-        "normative_ect_kn_m": ect,
-        "message": "Расчётный BCT; фактических сопоставимых испытаний в базе пока нет",
+        "required_bct_kn": None if required is None else Decimal(required),
+        "required_bct_source": "order" if required is not None else "laboratory_history_pending",
+        "predicted_bct_kn": None,
+        "observed_bct_kn": None,
+        "sample_size": 0,
+        "status": "missing_laboratory_evidence",
+        "message": (
+            "Требуемый и прогнозный BCT будут определены по сопоставимой "
+            "лабораторной истории"
+            if required is None
+            else "Требуемый BCT задан; нет сопоставимых испытаний выбранной композиции"
+        ),
     }
 
 
 def calculate_order_automatically(
     *, items: list[dict], materials: list[dict], references: dict
 ) -> dict:
-    corrugator = references["corrugator"]["payload"]
+    corrugator = {
+        **references["corrugator"]["payload"],
+        **references.get("optimization_policy", {}).get("payload", {}),
+    }
     prepared = []
     for index, source in enumerate(items, start=1):
         geometry = calculate_fefco_0201_geometry(
@@ -187,7 +184,7 @@ def calculate_order_automatically(
             references=references,
         )
         row = {**source, "code": source.get("code") or f"BOX-{index:03d}", "geometry": geometry}
-        row["strength"] = _estimate_bct(row, references)
+        row["strength"] = _strength_requirement(row)
         prepared.append(row)
 
     widths_with_liner = {
@@ -235,6 +232,17 @@ def calculate_order_automatically(
                 **layout,
                 "composition": selected,
                 "composition_alternatives": composition["alternatives"],
+                "strength": [
+                    {
+                        "code": detail["code"],
+                        **next(
+                            item["strength"]
+                            for item in prepared
+                            if item["code"] == detail["code"]
+                        ),
+                    }
+                    for detail in layout["items"]
+                ],
                 "status": "feasible_incomplete",
                 "missing": ([] if verified else ["Состав сырья ещё не утверждён технологом"])
                 + ([selected["price_warning"]] if selected["price_warning"] else [])
@@ -243,6 +251,7 @@ def calculate_order_automatically(
             options.append(option)
         options.sort(
             key=lambda row: (
+                row["edge_trim_status"] == "elevated",
                 row["composition"]["materials_cost_rub"] is None,
                 not row["composition"]["cost_comparable"],
                 row["composition"]["materials_cost_rub"] or Decimal("999999999"),
@@ -277,6 +286,21 @@ def calculate_order_automatically(
                 "композицию до классификации сырья."
             ),
             "Коэффициент гофрирования и нормативы марок требуют подтверждения технологом.",
+            *(
+                [
+                    "Для части или всего заказа нет раскроя с нормальной боковой обрезью "
+                    "до 3%; показаны лучшие доступные варианты с повышенной обрезью."
+                ]
+                if any(
+                    launch["options"]
+                    and all(
+                        option["edge_trim_status"] == "elevated"
+                        for option in launch["options"]
+                    )
+                    for launch in launches
+                )
+                else []
+            ),
         ]
         if any_unverified
         else [],

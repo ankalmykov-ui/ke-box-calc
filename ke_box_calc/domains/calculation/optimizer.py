@@ -75,12 +75,22 @@ def evaluate_layout(
     web_area = Decimal(roll_width_mm) / Decimal(1000) * run_m
     trim_area = Decimal(trim_mm) / Decimal(1000) * run_m
     total_waste = trim_area + overproduction_area
+    edge_trim_percent = (
+        Decimal(trim_mm) / Decimal(roll_width_mm) * 100
+    ).quantize(Decimal("0.01"))
+    normal_edge_trim_max = Decimal(str(settings.get("normal_edge_trim_max_percent", 3)))
+    elevated_edge_trim = edge_trim_percent > normal_edge_trim_max
     return {
         "roll_width_mm": roll_width_mm,
         "used_width_mm": used_width,
         "edge_trim_mm": trim_mm,
-        "edge_trim_percent": (Decimal(trim_mm) / Decimal(roll_width_mm) * 100).quantize(
-            Decimal("0.01")
+        "edge_trim_percent": edge_trim_percent,
+        "edge_trim_status": "elevated" if elevated_edge_trim else "normal",
+        "edge_trim_warning": (
+            "Этот набор заказов возможно раскроить только с повышенным процентом "
+            "боковой обрези."
+            if elevated_edge_trim
+            else None
         ),
         "run_length_m": run_m.quantize(Decimal("0.001")),
         "web_area_m2": web_area.quantize(Decimal("0.001")),
@@ -108,7 +118,12 @@ def ranked_layouts(items: list[OrderItem], roll_widths: list[int], settings: dic
             if candidate:
                 variants.append(candidate)
     variants.sort(
-        key=lambda row: (row["total_waste_m2"], row["run_length_m"], row["roll_width_mm"])
+        key=lambda row: (
+            row["edge_trim_status"] == "elevated",
+            row["total_waste_m2"],
+            row["run_length_m"],
+            row["roll_width_mm"],
+        )
     )
     return variants
 
@@ -129,7 +144,12 @@ def plan_launches(items: list[OrderItem], roll_widths: list[int], settings: dict
                 layouts = ranked_layouts(subset, roll_widths, settings)
                 if not layouts:
                     continue
-                key = (-len(subset), layouts[0]["total_waste_m2"], layouts[0]["run_length_m"])
+                key = (
+                    -len(subset),
+                    layouts[0]["edge_trim_status"] == "elevated",
+                    layouts[0]["total_waste_m2"],
+                    layouts[0]["run_length_m"],
+                )
                 if best is None or key < best[0]:
                     best = (key, indexes, layouts[:15])
         if best is None:

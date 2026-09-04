@@ -8,6 +8,7 @@ def test_initial_migration_is_reversible_and_scoped() -> None:
         "0002_materials_warehouse",
         "0003_calculation_references",
         "0004_price_quality",
+        "0005_laboratory_bct_policy",
     ]
     migration = migrations[0]
     for table in (
@@ -31,3 +32,7 @@ def test_initial_migration_is_reversible_and_scoped() -> None:
     assert "CREATE TABLE calculation_reference_versions" in references.up_sql
     assert "DROP TABLE IF EXISTS calculation_reference_versions" in references.down_sql
     assert "ADD COLUMN quality_status" in migrations[3].up_sql
+    laboratory = migrations[4]
+    assert "CREATE TABLE laboratory_tests" in laboratory.up_sql
+    assert "CREATE TABLE laboratory_test_layers" in laboratory.up_sql
+    assert "normal_edge_trim_max_percent" in laboratory.up_sql

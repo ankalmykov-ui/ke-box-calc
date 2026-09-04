@@ -25,6 +25,7 @@ def test_v2_meta_contract() -> None:
         "0002_materials_warehouse",
         "0003_calculation_references",
         "0004_price_quality",
+        "0005_laboratory_bct_policy",
     ]
 
 

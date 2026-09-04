@@ -94,6 +94,8 @@ def test_one_click_calculation_selects_layout_and_stock_composition() -> None:
     )
     assert option["items"][0]["material_cost_per_ordered_box_rub"] > 0
     assert option["items"][0]["ordered_area_m2"] > 0
+    assert result["items"][0]["strength"]["predicted_bct_kn"] is None
+    assert option["strength"][0]["status"] == "missing_laboratory_evidence"
     assert result["recommendation_available"] is False
     assert result["status"] == "feasible_incomplete"
 
@@ -158,3 +160,69 @@ def test_two_cut_lengths_can_share_one_launch() -> None:
     assert sum(item["allocated_materials_cost_rub"] for item in option["items"]) == option[
         "composition"
     ]["materials_cost_rub"]
+
+
+def test_edge_trim_up_to_three_percent_is_normal() -> None:
+    references = {
+        **REFERENCES,
+        "corrugator": {
+            **REFERENCES["corrugator"],
+            "payload": {
+                **REFERENCES["corrugator"]["payload"],
+                "normal_edge_trim_max_percent": 3,
+            },
+        },
+    }
+    result = calculate_order_automatically(
+        items=[
+            {
+                "code": "NORMAL-TRIM",
+                "length_mm": 400,
+                "width_mm": 270,
+                "height_mm": 246,
+                "quantity": 100,
+                "board_grade": "T23.1",
+                "profile": "C",
+                "technological_trim_mm": 0,
+            }
+        ],
+        materials=[material(1, "liner", "140", "52"), material(2, "paper", "125", "47")],
+        references=references,
+    )
+    option = result["launches"][0]["options"][0]
+    assert option["edge_trim_percent"] <= Decimal("3")
+    assert option["edge_trim_status"] == "normal"
+    assert option["edge_trim_warning"] is None
+
+
+def test_only_elevated_trim_is_allowed_with_explicit_warning() -> None:
+    references = {
+        **REFERENCES,
+        "corrugator": {
+            **REFERENCES["corrugator"],
+            "payload": {
+                **REFERENCES["corrugator"]["payload"],
+                "normal_edge_trim_max_percent": 3,
+            },
+        },
+    }
+    result = calculate_order_automatically(
+        items=[
+            {
+                "code": "ELEVATED-TRIM",
+                "length_mm": 450,
+                "width_mm": 326,
+                "height_mm": 210,
+                "quantity": 1000,
+                "board_grade": "T23.1",
+                "profile": "C",
+                "technological_trim_mm": 0,
+            }
+        ],
+        materials=[material(1, "liner", "140", "52"), material(2, "paper", "125", "47")],
+        references=references,
+    )
+    option = result["launches"][0]["options"][0]
+    assert option["edge_trim_percent"] > Decimal("3")
+    assert option["edge_trim_status"] == "elevated"
+    assert "повышенным процентом боковой обрези" in option["edge_trim_warning"]

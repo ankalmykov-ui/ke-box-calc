@@ -67,6 +67,7 @@ class OrderItemRequest(BaseModel):
     height_mm: int = Field(gt=0, le=5000)
     quantity: int = Field(gt=0, le=1_000_000)
     board_grade: str = Field(min_length=2, max_length=20)
+    required_bct_kn: Decimal | None = Field(default=None, gt=0, le=1000)
     profile: str = Field(pattern="^(E|B|C)$")
     technological_trim_mm: int = Field(default=0, ge=0, le=50)
 

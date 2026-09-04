@@ -55,8 +55,10 @@ function renderOption(option, index) {
   const composition = option.composition;
   const label = option.is_recommended ? "Рекомендуемый" : option.is_preliminary_leader ? "Предварительный лидер" : `Вариант ${index + 1}`;
   const perBox = option.items.length === 1 ? option.items[0].material_cost_per_ordered_box_rub : null;
-  return `<article class="option-card ${index === 0 ? "featured" : ""}">
-    <div class="option-head"><div><span class="rank">${label}</span><h3>Рулон ${option.roll_width_mm} мм · ${option.streams_total} руч.</h3></div><div class="option-price">${perBox == null ? "" : `<strong>${money(perBox)} / короб</strong>`}<span>Сырьё на запуск: ${money(composition.materials_cost_rub)}</span><small>Без стоимости переработки</small></div></div>
+  const trimBadge = option.edge_trim_status === "elevated" ? '<span class="trim-badge">Повышенная боковая обрезь</span>' : '<span class="trim-ok">Обрезь в норме ≤ 3%</span>';
+  const strength = (option.strength || []).map(item => `<div><span>${item.code}</span><strong>${item.predicted_bct_kn == null ? "BCT: нет сопоставимых данных" : `BCT: ${number(item.predicted_bct_kn, 3)} кН`}</strong><small>${item.required_bct_kn == null ? "Порог: будет определён по лабораторной истории" : `Требуется не менее ${number(item.required_bct_kn, 3)} кН`} · испытаний: ${item.sample_size || 0}</small></div>`).join("");
+  return `<article class="option-card ${index === 0 ? "featured" : ""} ${option.edge_trim_status === "elevated" ? "elevated-trim" : ""}">
+    <div class="option-head"><div><span class="rank">${label}</span>${trimBadge}<h3>Рулон ${option.roll_width_mm} мм · ${option.streams_total} руч.</h3></div><div class="option-price">${perBox == null ? "" : `<strong>${money(perBox)} / короб</strong>`}<span>Сырьё на запуск: ${money(composition.materials_cost_rub)}</span><small>Без стоимости переработки</small></div></div>
     <div class="area-balance">
       <div><small>Площадь заказа</small><strong>${number(option.useful_area_m2)} м²</strong><span>чистая площадь заказанных заготовок</span></div>
       <div><small>Полотно произведено</small><strong>${number(option.web_area_m2)} м²</strong><span>${number(option.run_length_m)} пог. м рулона</span></div>
@@ -71,17 +73,19 @@ function renderOption(option, index) {
       <div><small>Поперечный рез</small><strong>${option.crosscut_lengths_mm.join(" / ")} мм</strong></div>
     </div>
     <div class="position-costs">${option.items.map(item => `<div><strong>${item.code}</strong><span>${item.streams} руч. · заказ ${item.ordered_quantity} шт. · произведено ${item.produced_quantity} шт.${item.overproduction_quantity ? ` (+${item.overproduction_quantity})` : ""}</span><span>Площадь заказа: ${number(item.ordered_area_m2)} м² · площадь 1 заготовки: ${number(item.blank_area_m2, 4)} м²</span><b>${money(item.material_cost_per_ordered_box_rub)} / короб <small>· сырьё позиции ${money(item.allocated_materials_cost_rub)}</small></b></div>`).join("")}</div>
+    <div class="strength-table">${strength}</div>
     <div class="layers-table">${composition.layers.map(layer => `<div><span>${layerLabel(layer.role)}</span><strong>${layer.name}</strong><small>${number(layer.grammage_g_m2)} г/м² · ${number(layer.required_kg, 3)} кг · ${number(layer.price_rub_kg)} ₽/кг · ${money(layer.cost_rub)}</small></div>`).join("")}</div>
+    ${option.edge_trim_warning ? `<p class="warning strong-warning">${option.edge_trim_warning}</p>` : ""}
     ${(option.missing || []).map(message => `<p class="warning">${message}</p>`).join("")}
   </article>`;
 }
 
 function renderResult(answer) {
   const target = byId("calculation-result");
-  const geometry = answer.items.map(item => `<div class="geometry-row"><strong>${item.code}</strong><span>заготовка ${item.geometry.blank_length_mm}×${item.geometry.blank_width_mm} мм</span><span>гофра по H · поворот запрещён</span><span>BCT ${item.strength.calculated_kn == null ? "не рассчитан" : `${number(item.strength.calculated_kn, 3)} кН`}</span></div>`).join("");
+  const geometry = answer.items.map(item => `<div class="geometry-row"><strong>${item.code}</strong><span>заготовка ${item.geometry.blank_length_mm}×${item.geometry.blank_width_mm} мм</span><span>гофра по H · поворот запрещён</span><span>${item.strength.required_bct_kn == null ? "Порог BCT: по лабораторной базе" : `Требуемый BCT: ${number(item.strength.required_bct_kn, 3)} кН`}</span></div>`).join("");
   const launches = answer.launches.map(launch => `<section class="launch"><div class="launch-title"><p class="eyebrow">Запуск ${launch.launch_number}</p><h2>Профиль ${launch.profile}</h2></div>${launch.options.length ? launch.options.map(renderOption).join("") : '<p class="message bad">Для запуска нет полного набора сырья одной ширины.</p>'}</section>`).join("");
   target.className = "calculation-output";
-  target.innerHTML = `<div class="result-status ${answer.recommendation_available ? "verified" : "preliminary"}"><strong>${answer.recommendation_available ? "Оптимальный производственный вариант найден" : "Предварительный подбор выполнен"}</strong><span>${answer.recommendation_available ? "Все обязательные данные подтверждены." : "Раскрой и цена рассчитаны по складу; марку композиции ещё должен подтвердить технолог."}</span></div><section class="geometry"><h2>Заготовки</h2>${geometry}</section>${launches}${(answer.unplanned || []).map(row => `<p class="message bad">${row.code}: ${row.reason}</p>`).join("")}`;
+  target.innerHTML = `<div class="result-status ${answer.recommendation_available ? "verified" : "preliminary"}"><strong>${answer.recommendation_available ? "Оптимальный производственный вариант найден" : "Предварительный подбор выполнен"}</strong><span>${answer.recommendation_available ? "Все обязательные данные подтверждены." : "Раскрой и цена рассчитаны по складу; BCT и состав должны быть подтверждены данными лаборатории."}</span></div>${(answer.warnings || []).map(message => `<p class="message warning">${message}</p>`).join("")}<section class="geometry"><h2>Заготовки</h2>${geometry}</section>${launches}${(answer.unplanned || []).map(row => `<p class="message bad">${row.code}: ${row.reason}</p>`).join("")}`;
   target.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
