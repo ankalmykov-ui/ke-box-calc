@@ -32,6 +32,7 @@
 - [Этапы реализации и критерии готовности](docs/04-delivery-plan.md)
 - [Архитектурные решения и открытые вопросы](docs/05-decisions.md)
 - [Трассировка требований ТЗ v2.2](docs/06-requirements-traceability.md)
+- [Анализ лабораторной таблицы BCT](docs/07-laboratory-import-analysis.md)
 
 ## Неприкосновенные границы
 
