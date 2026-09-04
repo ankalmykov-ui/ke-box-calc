@@ -4,6 +4,7 @@ from decimal import ROUND_HALF_UP, Decimal
 
 from ke_box_calc.domains.calculation.optimizer import (
     OrderItem,
+    add_item_costs,
     choose_composition,
     plan_launches,
 )
@@ -224,6 +225,7 @@ def calculate_order_automatically(
             if composition is None:
                 continue
             selected = composition["selected"]
+            add_item_costs(layout, selected)
             # A classified material is necessary, but not sufficient. The exact
             # layer recipe must also exist in the approved composition catalogue.
             # That catalogue has not been loaded yet, so grade matching stays open.

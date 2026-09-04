@@ -49,8 +49,11 @@ def evaluate_layout(
         produced = cuts * count
         over = max(0, produced - item.quantity)
         area = Decimal(item.blank_length_mm * item.blank_width_mm) / Decimal(1_000_000)
-        useful_area += area * item.quantity
-        overproduction_area += area * over
+        ordered_area = area * item.quantity
+        produced_area = area * produced
+        item_overproduction_area = area * over
+        useful_area += ordered_area
+        overproduction_area += item_overproduction_area
         details.append(
             {
                 "code": item.code,
@@ -60,11 +63,18 @@ def evaluate_layout(
                 "ordered_quantity": item.quantity,
                 "produced_quantity": produced,
                 "overproduction_quantity": over,
+                "blank_area_m2": area.quantize(Decimal("0.000001")),
+                "ordered_area_m2": ordered_area.quantize(Decimal("0.001")),
+                "produced_area_m2": produced_area.quantize(Decimal("0.001")),
+                "overproduction_area_m2": item_overproduction_area.quantize(
+                    Decimal("0.001")
+                ),
             }
         )
     trim_mm = roll_width_mm - used_width
     web_area = Decimal(roll_width_mm) / Decimal(1000) * run_m
     trim_area = Decimal(trim_mm) / Decimal(1000) * run_m
+    total_waste = trim_area + overproduction_area
     return {
         "roll_width_mm": roll_width_mm,
         "used_width_mm": used_width,
@@ -77,7 +87,10 @@ def evaluate_layout(
         "useful_area_m2": useful_area.quantize(Decimal("0.001")),
         "trim_area_m2": trim_area.quantize(Decimal("0.001")),
         "overproduction_area_m2": overproduction_area.quantize(Decimal("0.001")),
-        "total_waste_m2": (trim_area + overproduction_area).quantize(Decimal("0.001")),
+        "total_waste_m2": total_waste.quantize(Decimal("0.001")),
+        "total_waste_percent": (total_waste / web_area * Decimal(100)).quantize(
+            Decimal("0.01")
+        ),
         "crosscut_lengths_mm": lengths,
         "crosscut_levels_used": len(lengths),
         "streams_total": sum(counts),
@@ -213,3 +226,32 @@ def choose_composition(layout: dict, materials: list[dict], flute_factor: Decima
         )
     )
     return {"selected": candidates[0], "alternatives": candidates[1:5]}
+
+
+def add_item_costs(layout: dict, composition: dict) -> None:
+    """Allocate the complete material cost of a run between ordered positions.
+
+    Allocation follows occupied machine width, so every position carries its
+    proportional share of edge trim and synchronized overproduction. Dividing
+    by the ordered quantity yields the material cost of one ordered box.
+    """
+    total_cost = composition["materials_cost_rub"]
+    used_width = Decimal(layout["used_width_mm"])
+    allocated_so_far = Decimal(0)
+    items = layout["items"]
+    for index, item in enumerate(items):
+        if total_cost is None or used_width == 0:
+            item["allocated_materials_cost_rub"] = None
+            item["material_cost_per_ordered_box_rub"] = None
+            continue
+        occupied_width = Decimal(item["stream_width_mm"] * item["streams"])
+        allocated_cost = (
+            Decimal(total_cost) - allocated_so_far
+            if index == len(items) - 1
+            else _money(Decimal(total_cost) * occupied_width / used_width)
+        )
+        allocated_so_far += allocated_cost
+        item["allocated_materials_cost_rub"] = allocated_cost
+        item["material_cost_per_ordered_box_rub"] = _money(
+            allocated_cost / Decimal(item["ordered_quantity"])
+        )

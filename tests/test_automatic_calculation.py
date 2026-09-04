@@ -83,6 +83,17 @@ def test_one_click_calculation_selects_layout_and_stock_composition() -> None:
     assert result["items"][0]["geometry"]["blank_length_mm"] > 0
     assert result["launches"][0]["options"][0]["composition"]["layers"]
     assert result["launches"][0]["options"][0]["composition"]["materials_cost_rub"] > 0
+    option = result["launches"][0]["options"][0]
+    assert option["web_area_m2"] == (
+        option["useful_area_m2"]
+        + option["trim_area_m2"]
+        + option["overproduction_area_m2"]
+    )
+    assert option["total_waste_m2"] == (
+        option["trim_area_m2"] + option["overproduction_area_m2"]
+    )
+    assert option["items"][0]["material_cost_per_ordered_box_rub"] > 0
+    assert option["items"][0]["ordered_area_m2"] > 0
     assert result["recommendation_available"] is False
     assert result["status"] == "feasible_incomplete"
 
@@ -143,3 +154,7 @@ def test_two_cut_lengths_can_share_one_launch() -> None:
     option = result["launches"][0]["options"][0]
     assert option["crosscut_levels_used"] == 2
     assert len(option["items"]) == 2
+    assert all(item["material_cost_per_ordered_box_rub"] > 0 for item in option["items"])
+    assert sum(item["allocated_materials_cost_rub"] for item in option["items"]) == option[
+        "composition"
+    ]["materials_cost_rub"]

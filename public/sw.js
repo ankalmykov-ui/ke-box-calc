@@ -1,4 +1,4 @@
-const CACHE = "ke-box-calc-v2-launch1";
+const CACHE = "ke-box-calc-v2-dev4";
 const ASSETS = ["/", "/app.css", "/app.js", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

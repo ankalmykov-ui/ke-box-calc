@@ -54,15 +54,23 @@ const layerLabel = (role) => ({ outer: "Внешний", fluting: "Гофрир�
 function renderOption(option, index) {
   const composition = option.composition;
   const label = option.is_recommended ? "Рекомендуемый" : option.is_preliminary_leader ? "Предварительный лидер" : `Вариант ${index + 1}`;
+  const perBox = option.items.length === 1 ? option.items[0].material_cost_per_ordered_box_rub : null;
   return `<article class="option-card ${index === 0 ? "featured" : ""}">
-    <div class="option-head"><div><span class="rank">${label}</span><h3>Рулон ${option.roll_width_mm} мм · ${option.streams_total} руч.</h3></div><strong>${money(composition.materials_cost_rub)}</strong></div>
-    <div class="metrics">
-      <div><small>Обрезь</small><strong>${number(option.edge_trim_percent)}%</strong></div>
-      <div><small>Потери всего</small><strong>${number(option.total_waste_m2)} м²</strong></div>
-      <div><small>Метраж</small><strong>${number(option.run_length_m)} м</strong></div>
+    <div class="option-head"><div><span class="rank">${label}</span><h3>Рулон ${option.roll_width_mm} мм · ${option.streams_total} руч.</h3></div><div class="option-price">${perBox == null ? "" : `<strong>${money(perBox)} / короб</strong>`}<span>Сырьё на запуск: ${money(composition.materials_cost_rub)}</span><small>Без стоимости переработки</small></div></div>
+    <div class="area-balance">
+      <div><small>Площадь заказа</small><strong>${number(option.useful_area_m2)} м²</strong><span>чистая площадь заказанных заготовок</span></div>
+      <div><small>Полотно произведено</small><strong>${number(option.web_area_m2)} м²</strong><span>${number(option.run_length_m)} пог. м рулона</span></div>
+    </div>
+    <div class="waste-breakdown">
+      <div><small>Боковая обрезь</small><strong>${number(option.trim_area_m2)} м² · ${number(option.edge_trim_percent)}%</strong><span>${option.edge_trim_mm} мм незанятой ширины рулона</span></div>
+      <div><small>Перепроизводство</small><strong>${number(option.overproduction_area_m2)} м²</strong><span>лишние заготовки из-за кратности раскроя</span></div>
+      <div class="waste-total"><small>Итого неполезная площадь</small><strong>${number(option.total_waste_m2)} м² · ${number(option.total_waste_percent)}%</strong><span>боковая обрезь + перепроизводство</span></div>
+    </div>
+    <div class="metrics compact-metrics">
+      <div><small>Использовано по ширине</small><strong>${option.used_width_mm} из ${option.roll_width_mm} мм</strong></div>
       <div><small>Поперечный рез</small><strong>${option.crosscut_lengths_mm.join(" / ")} мм</strong></div>
     </div>
-    <div class="layout-lines">${option.items.map(item => `<span>${item.code}: ${item.streams} руч. · ${item.produced_quantity} шт.${item.overproduction_quantity ? ` (+${item.overproduction_quantity})` : ""}</span>`).join("")}</div>
+    <div class="position-costs">${option.items.map(item => `<div><strong>${item.code}</strong><span>${item.streams} руч. · заказ ${item.ordered_quantity} шт. · произведено ${item.produced_quantity} шт.${item.overproduction_quantity ? ` (+${item.overproduction_quantity})` : ""}</span><span>Площадь заказа: ${number(item.ordered_area_m2)} м² · площадь 1 заготовки: ${number(item.blank_area_m2, 4)} м²</span><b>${money(item.material_cost_per_ordered_box_rub)} / короб <small>· сырьё позиции ${money(item.allocated_materials_cost_rub)}</small></b></div>`).join("")}</div>
     <div class="layers-table">${composition.layers.map(layer => `<div><span>${layerLabel(layer.role)}</span><strong>${layer.name}</strong><small>${number(layer.grammage_g_m2)} г/м² · ${number(layer.required_kg, 3)} кг · ${number(layer.price_rub_kg)} ₽/кг · ${money(layer.cost_rub)}</small></div>`).join("")}</div>
     ${(option.missing || []).map(message => `<p class="warning">${message}</p>`).join("")}
   </article>`;
