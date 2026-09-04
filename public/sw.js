@@ -1,5 +1,10 @@
 const CACHE = "ke-box-calc-v2-dev4";
-const ASSETS = ["/", "/app.css", "/app.js", "/icon.svg"];
+const ASSETS = [
+  "/",
+  "/app.css?v=2.0.0-dev.4",
+  "/app.js?v=2.0.0-dev.4",
+  "/icon.svg",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
